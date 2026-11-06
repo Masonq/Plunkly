@@ -44,6 +44,12 @@ DB = DATA_DIR / "plunkly.db"
 def db():
     c = sqlite3.connect(DB, timeout=10)
     c.execute("CREATE TABLE IF NOT EXISTS saves (uid INTEGER PRIMARY KEY, name TEXT, state TEXT NOT NULL, ts INTEGER NOT NULL, updated INTEGER NOT NULL)")
+    cols = {r[1] for r in c.execute("PRAGMA table_info(saves)")}
+    for col, typ in (("power", "INTEGER DEFAULT 0"), ("points", "INTEGER DEFAULT 1000"), ("meta", "TEXT")):
+        if col not in cols:
+            c.execute(f"ALTER TABLE saves ADD COLUMN {col} {typ}")
+    c.execute("CREATE TABLE IF NOT EXISTS grants (id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, sku TEXT, charge TEXT UNIQUE, claimed INTEGER DEFAULT 0, ts INTEGER)")
+    c.execute("CREATE TABLE IF NOT EXISTS refs (friend INTEGER PRIMARY KEY, referrer INTEGER, name TEXT, claimed INTEGER DEFAULT 0, ts INTEGER)")
     return c
 
 
@@ -91,9 +97,96 @@ async def api_save(request: Request):
         cur = c.execute("SELECT ts FROM saves WHERE uid=?", (int(u["id"]),)).fetchone()
         if cur and cur[0] > ts:
             return {"ok": True, "stale": True}
-        c.execute("INSERT INTO saves(uid,name,state,ts,updated) VALUES(?,?,?,?,?) ON CONFLICT(uid) DO UPDATE SET name=excluded.name,state=excluded.state,ts=excluded.ts,updated=excluded.updated",
-                  (int(u["id"]), (u.get("first_name") or "")[:64], json.dumps(state, separators=(",", ":")), ts, int(time.time())))
+        meta = body.get("meta") or {}
+        power = int(meta.get("power") or 0)
+        points = int(meta.get("points") or 1000)
+        c.execute("INSERT INTO saves(uid,name,state,ts,updated,power,points,meta) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(uid) DO UPDATE SET name=excluded.name,state=excluded.state,ts=excluded.ts,updated=excluded.updated,power=excluded.power,points=excluded.points,meta=excluded.meta",
+                  (int(u["id"]), (u.get("first_name") or "")[:64], json.dumps(state, separators=(",", ":")), ts, int(time.time()), power, points, json.dumps(meta)[:4000]))
     return {"ok": True}
+
+
+def auth(body):
+    u = tg_user(body.get("initData", ""))
+    if not u or "id" not in u:
+        raise HTTPException(status_code=401)
+    return u
+
+
+@app.post("/api/arena/opponents")
+async def api_opp(request: Request):
+    body = await request.json()
+    u = auth(body)
+    mp = int(body.get("power") or 0)
+    with db() as c:
+        rows = c.execute("SELECT uid,name,power,points,meta FROM saves WHERE uid!=? AND power>0 ORDER BY ABS(power-?) LIMIT 12", (int(u["id"]), mp)).fetchall()
+    import random
+    random.shuffle(rows)
+    out = []
+    for uid, name, power, points, meta in rows[:3]:
+        try:
+            st = (json.loads(meta or "{}") or {}).get("st") or {}
+        except Exception:
+            st = {}
+        out.append({"uid": uid % 1000, "name": name or "Player", "power": power, "points": points, "st": st})
+    return {"list": out}
+
+
+@app.post("/api/top")
+async def api_top(request: Request):
+    body = await request.json()
+    u = auth(body)
+    with db() as c:
+        rows = c.execute("SELECT uid,name,points,power FROM saves ORDER BY points DESC, power DESC LIMIT 50").fetchall()
+        me = c.execute("SELECT points FROM saves WHERE uid=?", (int(u["id"]),)).fetchone()
+        rank = (c.execute("SELECT COUNT(*) FROM saves WHERE points>?", (me[0],)).fetchone()[0] + 1) if me else 0
+    return {"list": [{"name": n or "Player", "points": p, "power": pw, "me": uid == int(u["id"])} for uid, n, p, pw in rows], "rank": rank}
+
+
+SKUS = {"caps10": ("10 star pods", 50), "caps50": ("50 star pods", 200), "acc20": ("20 accelerators", 40), "vip30": ("VIP for 30 days", 300)}
+
+
+@app.post("/api/invoice")
+async def api_invoice(request: Request):
+    body = await request.json()
+    u = auth(body)
+    sku = body.get("sku")
+    if sku not in SKUS:
+        raise HTTPException(status_code=400)
+    title, price = SKUS[sku]
+    r = await tg("createInvoiceLink", title=f"Plunkly · {title}", description=title, payload=f"{u['id']}:{sku}:{secrets.token_hex(4)}", currency="XTR", prices=[{"label": title, "amount": price}])
+    if not r.get("ok"):
+        raise HTTPException(status_code=502)
+    return {"link": r["result"]}
+
+
+@app.post("/api/grants")
+async def api_grants(request: Request):
+    body = await request.json()
+    u = auth(body)
+    with db() as c:
+        rows = c.execute("SELECT id,sku FROM grants WHERE uid=? AND claimed=0", (int(u["id"]),)).fetchall()
+        if rows:
+            c.execute("UPDATE grants SET claimed=1 WHERE uid=? AND claimed=0", (int(u["id"]),))
+    return {"list": [{"id": i, "sku": s} for i, s in rows]}
+
+
+@app.post("/api/friends")
+async def api_friends(request: Request):
+    body = await request.json()
+    u = auth(body)
+    with db() as c:
+        rows = c.execute("SELECT name,claimed FROM refs WHERE referrer=? ORDER BY ts DESC", (int(u["id"]),)).fetchall()
+    return {"count": len(rows), "unclaimed": sum(1 for _, cl in rows if not cl), "names": [n for n, _ in rows[:20] if n]}
+
+
+@app.post("/api/friends/claim")
+async def api_friends_claim(request: Request):
+    body = await request.json()
+    u = auth(body)
+    with db() as c:
+        n = c.execute("SELECT COUNT(*) FROM refs WHERE referrer=? AND claimed=0", (int(u["id"]),)).fetchone()[0]
+        c.execute("UPDATE refs SET claimed=1 WHERE referrer=? AND claimed=0", (int(u["id"]),))
+    return {"n": n}
 
 
 @app.get("/healthz")
@@ -118,14 +211,14 @@ async def tg(method, **data):
 
 WELCOME = (
     "<b>Welcome to Plunkly!</b>\n\n"
-    "Your tiny planet is drifting through space. Meet neighbours, trade, raid and build alliances.\n\n"
+    "Defend your tiny planet from space monsters, open star pods for epic gear and battle other captains in the arena.\n\n"
     "Tap <b>Play</b> to open your planet."
 )
 
 
 WELCOME_RU = (
     "<b>Добро пожаловать в Plunkly!</b>\n\n"
-    "Твоя маленькая планета летит по космосу. Встречай соседей, торгуй, устраивай набеги и заключай союзы.\n\n"
+    "Защищай свою маленькую планету от космических монстров, открывай звёздные капсулы с крутым снаряжением и сражайся с другими капитанами на арене.\n\n"
     "Нажми <b>Играть</b>, чтобы открыть свою планету."
 )
 
@@ -135,9 +228,39 @@ async def webhook(secret: str, request: Request):
     if secret != SECRET or request.headers.get("X-Telegram-Bot-Api-Secret-Token") != SECRET:
         raise HTTPException(status_code=403)
     upd = await request.json()
+    pcq = upd.get("pre_checkout_query")
+    if pcq:
+        ok = (pcq.get("invoice_payload") or "").split(":")[1:2] and (pcq.get("invoice_payload").split(":")[1] in SKUS)
+        await tg("answerPreCheckoutQuery", pre_checkout_query_id=pcq["id"], ok=bool(ok), **({} if ok else {"error_message": "Unknown item"}))
+        return {"ok": True}
     msg = upd.get("message") or {}
     chat = (msg.get("chat") or {}).get("id")
-    ru = ((msg.get("from") or {}).get("language_code") or "").lower().startswith("ru")
+    frm = msg.get("from") or {}
+    ru = (frm.get("language_code") or "").lower().startswith("ru")
+    sp = msg.get("successful_payment")
+    if sp:
+        try:
+            uid, sku = sp["invoice_payload"].split(":")[:2]
+            with db() as c:
+                c.execute("INSERT OR IGNORE INTO grants(uid,sku,charge,claimed,ts) VALUES(?,?,?,0,?)", (int(uid), sku, sp.get("telegram_payment_charge_id"), int(time.time())))
+        except Exception as e:
+            log.exception("payment store failed: %s", e)
+        if chat:
+            await tg("sendMessage", chat_id=chat, text="Спасибо! Покупка уже в игре." if ru else "Thank you! Your purchase is waiting in the game.",
+                     reply_markup={"inline_keyboard": [[{"text": "Играть" if ru else "Play", "web_app": {"url": play_url()}}]]})
+        return {"ok": True}
+    text = msg.get("text") or ""
+    if text.startswith("/start ref_") and frm.get("id"):
+        try:
+            ref = int(text.split("ref_", 1)[1].split()[0])
+            me = int(frm["id"])
+            if ref != me:
+                with db() as c:
+                    known = c.execute("SELECT 1 FROM saves WHERE uid=?", (me,)).fetchone() or c.execute("SELECT 1 FROM refs WHERE friend=?", (me,)).fetchone()
+                    if not known:
+                        c.execute("INSERT OR IGNORE INTO refs(friend,referrer,name,claimed,ts) VALUES(?,?,?,0,?)", (me, ref, (frm.get("first_name") or "")[:64], int(time.time())))
+        except Exception:
+            pass
     if chat:
         await tg("sendMessage", chat_id=chat, text=WELCOME_RU if ru else WELCOME, parse_mode="HTML",
                  reply_markup={"inline_keyboard": [[{"text": "Играть в Plunkly" if ru else "Play Plunkly", "web_app": {"url": play_url()}}]]})
@@ -153,7 +276,7 @@ async def setup_bot():
         return
     try:
         await tg("setWebhook", url=f"{BASE_URL}/tg/webhook/{SECRET}", secret_token=SECRET,
-                 allowed_updates=["message"], drop_pending_updates=False)
+                 allowed_updates=["message", "pre_checkout_query"], drop_pending_updates=False)
         await tg("setChatMenuButton", menu_button={"type": "web_app", "text": "Play", "web_app": {"url": play_url()}})
         await tg("setMyCommands", commands=[{"command": "start", "description": "Open your planet"}])
         await tg("setMyShortDescription", short_description="Tiny worlds. Big meetups. A space game in Telegram.")
