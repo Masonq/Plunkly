@@ -27,7 +27,7 @@ INDEX = (WEB / "index.html").read_text(encoding="utf-8").replace("__V__", VERSIO
 NOCACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def index():
     return HTMLResponse(INDEX, headers=NOCACHE)
 
