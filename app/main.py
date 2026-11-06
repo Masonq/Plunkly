@@ -54,6 +54,13 @@ WELCOME = (
 )
 
 
+WELCOME_RU = (
+    "<b>Добро пожаловать в Plunkly!</b>\n\n"
+    "Твоя маленькая планета летит по космосу. Встречай соседей, торгуй, устраивай набеги и заключай союзы.\n\n"
+    "Нажми <b>Играть</b>, чтобы открыть свою планету."
+)
+
+
 @app.post("/tg/webhook/{secret}")
 async def webhook(secret: str, request: Request):
     if secret != SECRET or request.headers.get("X-Telegram-Bot-Api-Secret-Token") != SECRET:
@@ -61,9 +68,12 @@ async def webhook(secret: str, request: Request):
     upd = await request.json()
     msg = upd.get("message") or {}
     chat = (msg.get("chat") or {}).get("id")
+    ru = ((msg.get("from") or {}).get("language_code") or "").lower().startswith("ru")
     if chat:
-        await tg("sendMessage", chat_id=chat, text=WELCOME, parse_mode="HTML",
-                 reply_markup={"inline_keyboard": [[{"text": "Play Plunkly", "web_app": {"url": play_url()}}]]})
+        await tg("sendMessage", chat_id=chat, text=WELCOME_RU if ru else WELCOME, parse_mode="HTML",
+                 reply_markup={"inline_keyboard": [[{"text": "Играть в Plunkly" if ru else "Play Plunkly", "web_app": {"url": play_url()}}]]})
+        if ru:
+            await tg("setChatMenuButton", chat_id=chat, menu_button={"type": "web_app", "text": "Играть", "web_app": {"url": play_url()}})
     return {"ok": True}
 
 
@@ -79,5 +89,8 @@ async def setup_bot():
         await tg("setMyCommands", commands=[{"command": "start", "description": "Open your planet"}])
         await tg("setMyShortDescription", short_description="Tiny worlds. Big meetups. A space game in Telegram.")
         await tg("setMyDescription", description="Your tiny planet drifts through a shared space. Meet neighbours, trade, raid, upgrade your captain's gear and build alliances.")
+        await tg("setMyShortDescription", short_description="Маленькие миры. Большие встречи. Космическая игра в Telegram.", language_code="ru")
+        await tg("setMyDescription", description="Твоя маленькая планета летит по общему космосу. Встречай соседей, торгуй, устраивай набеги, улучшай снаряжение капитана и заключай союзы.", language_code="ru")
+        await tg("setMyCommands", commands=[{"command": "start", "description": "Открыть свою планету"}], language_code="ru")
     except Exception as e:
         log.exception("bot setup failed: %s", e)
