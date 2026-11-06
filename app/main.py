@@ -1,4 +1,5 @@
-import os, secrets, logging, pathlib
+import os, secrets, logging, pathlib, hmac, hashlib, json, sqlite3, time
+from urllib.parse import parse_qsl
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -32,9 +33,77 @@ async def index():
     return HTMLResponse(INDEX, headers=NOCACHE)
 
 
+DATA_DIR = pathlib.Path(os.environ.get("DATA_DIR", "/var/lib/plunkly"))
+try:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    DATA_DIR = ROOT / ".data"; DATA_DIR.mkdir(exist_ok=True)
+DB = DATA_DIR / "plunkly.db"
+
+
+def db():
+    c = sqlite3.connect(DB, timeout=10)
+    c.execute("CREATE TABLE IF NOT EXISTS saves (uid INTEGER PRIMARY KEY, name TEXT, state TEXT NOT NULL, ts INTEGER NOT NULL, updated INTEGER NOT NULL)")
+    return c
+
+
+def tg_user(init_data: str):
+    if not init_data or not BOT_TOKEN:
+        return None
+    pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+    got = pairs.pop("hash", "")
+    dcs = "\n".join(f"{k}={v}" for k, v in sorted(pairs.items()))
+    key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+    calc = hmac.new(key, dcs.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(calc, got):
+        return None
+    try:
+        return json.loads(pairs.get("user", "{}"))
+    except Exception:
+        return None
+
+
+@app.post("/api/load")
+async def api_load(request: Request):
+    body = await request.json()
+    u = tg_user(body.get("initData", ""))
+    if not u or "id" not in u:
+        raise HTTPException(status_code=401)
+    with db() as c:
+        row = c.execute("SELECT state, ts FROM saves WHERE uid=?", (int(u["id"]),)).fetchone()
+    return JSONResponse({"state": json.loads(row[0]) if row else None, "ts": row[1] if row else 0}, headers=NOCACHE)
+
+
+@app.post("/api/save")
+async def api_save(request: Request):
+    raw = await request.body()
+    if len(raw) > 200_000:
+        raise HTTPException(status_code=413)
+    body = json.loads(raw or b"{}")
+    u = tg_user(body.get("initData", ""))
+    if not u or "id" not in u:
+        raise HTTPException(status_code=401)
+    state = body.get("state")
+    ts = int(body.get("ts") or 0)
+    if not isinstance(state, dict):
+        raise HTTPException(status_code=400)
+    with db() as c:
+        cur = c.execute("SELECT ts FROM saves WHERE uid=?", (int(u["id"]),)).fetchone()
+        if cur and cur[0] > ts:
+            return {"ok": True, "stale": True}
+        c.execute("INSERT INTO saves(uid,name,state,ts,updated) VALUES(?,?,?,?,?) ON CONFLICT(uid) DO UPDATE SET name=excluded.name,state=excluded.state,ts=excluded.ts,updated=excluded.updated",
+                  (int(u["id"]), (u.get("first_name") or "")[:64], json.dumps(state, separators=(",", ":")), ts, int(time.time())))
+    return {"ok": True}
+
+
 @app.get("/healthz")
 async def healthz():
-    return JSONResponse({"ok": True, "version": VERSION}, headers=NOCACHE)
+    try:
+        with db() as c:
+            n = c.execute("SELECT COUNT(*) FROM saves").fetchone()[0]
+    except Exception:
+        n = -1
+    return JSONResponse({"ok": True, "version": VERSION, "saves": n}, headers=NOCACHE)
 
 
 def play_url():

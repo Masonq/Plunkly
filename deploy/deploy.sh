@@ -18,6 +18,7 @@ say "== code"
 if [ -d $APP/.git ]; then run git -C $APP remote set-url origin "$REPO"; run git -C $APP fetch origin main; run git -C $APP reset --hard origin/main; else run git clone "$REPO" $APP; fi
 VER=$(git -C $APP rev-parse --short HEAD); say "version $VER"
 grep -q '^APP_VERSION=' $ENVF && sed -i "s/^APP_VERSION=.*/APP_VERSION=$VER/" $ENVF || echo "APP_VERSION=$VER" >> $ENVF
+mkdir -p /var/lib/plunkly; grep -q "^DATA_DIR=" $ENVF || echo "DATA_DIR=/var/lib/plunkly" >> $ENVF
 say "== python"; [ -x $APP/.venv/bin/python ] || run python3 -m venv $APP/.venv; run $APP/.venv/bin/pip install -q -r $APP/requirements.txt
 say "== service"
 cat > /etc/systemd/system/plunkly.service <<UNIT
@@ -56,6 +57,7 @@ say "index head: $(curl -sI -m 10 https://$DOMAIN/ | tr -d '\r' | grep -iE '^(HT
 say "asset: $(curl -sI -m 10 "https://$DOMAIN/assets/hero_0.webp?v=$VER" | tr -d '\r' | grep -iE '^(HTTP|cache-control)' | tr '\n' ' ')"
 say "webhook: $(curl -s -m 10 https://api.telegram.org/bot$BOT_TOKEN/getWebhookInfo | sed "s/$BOT_TOKEN/***/g" | sed -E 's#webhook/[0-9a-f]+#webhook/***#')"
 say "service: $(systemctl is-active plunkly)"
+say "save api: $(curl -s -m 5 -o /dev/null -w %{http_code} -X POST -H content-type:application/json -d {} http://127.0.0.1:$PORT/api/load) (401 expected without Telegram)"
 journalctl -u plunkly -n 30 --no-pager >> "$LOG" 2>&1
 sed -i "s/${BOT_TOKEN}/***/g; s/${GH_PAT}/***/g; s/${WEBHOOK_SECRET}/***/g" "$LOG"
 say "== report"

@@ -825,13 +825,21 @@ if(LANG==='ru'){
   trNode(document.body);new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')trNode(m.target);else m.addedNodes.forEach(trNode)}}).observe(document.body,{childList:true,subtree:true,characterData:true});
 }
 const lb=document.createElement('button');lb.className='pill r';lb.id='langB';lb.setAttribute('aria-label','Language');lb.textContent=LANG==='ru'?'RU':'EN';lb.style.cssText='position:absolute;top:8px;right:calc(var(--pad) + 44px);z-index:6;font-size:12px;font-weight:700';$('stage').appendChild(lb);
-lb.onclick=()=>{try{localStorage.setItem('pl_lang',LANG==='ru'?'en':'ru')}catch(e){}saveState();location.reload()};
+lb.onclick=()=>{try{localStorage.setItem('pl_lang',LANG==='ru'?'en':'ru')}catch(e){}saveState(true);setTimeout(()=>location.reload(),250)};
 /* ---- save / load ---- */
-const SKEY='pl_state_v1';
-function saveState(){try{localStorage.setItem(SKEY,JSON.stringify({S,B:BLD.map(b=>[b.lv,b.cost]),L:LOG.slice(0,30).map(l=>({o:OP.indexOf(l.o),t:l.t,ty:l.ty,txt:l.txt}))}))}catch(e){}}
-(function loadState(){try{const d=JSON.parse(localStorage.getItem(SKEY)||'null');if(!d||!d.S)return;const s=d.S;for(const k in s){if(s[k]&&typeof s[k]==='object'&&!Array.isArray(s[k])&&S[k]&&typeof S[k]==='object')Object.assign(S[k],s[k]);else S[k]=s[k]}
-  (d.B||[]).forEach((x,i)=>{if(BLD[i]){BLD[i].lv=x[0];BLD[i].cost=x[1]}});if(Array.isArray(d.L)&&d.L.length)LOG=d.L.filter(l=>OP[l.o]).map(l=>({o:OP[l.o],t:l.t,ty:l.ty,txt:l.txt}));disp.coins=S.coins;disp.cry=S.cry}catch(e){}})();
-setInterval(saveState,4000);addEventListener('pagehide',saveState);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveState()});
+const SKEY='pl_state_v1';let lastSent='',saveTs=0;
+const snap=()=>({S,B:BLD.map(b=>[b.lv,b.cost]),L:LOG.slice(0,30).map(l=>({o:OP.indexOf(l.o),t:l.t,ty:l.ty,txt:l.txt}))});
+function applyState(d){if(!d||!d.S)return false;const s=d.S;for(const k in s){if(s[k]&&typeof s[k]==='object'&&!Array.isArray(s[k])&&S[k]&&typeof S[k]==='object')Object.assign(S[k],s[k]);else S[k]=s[k]}
+  (d.B||[]).forEach((x,i)=>{if(BLD[i]){BLD[i].lv=x[0];BLD[i].cost=x[1]}});if(Array.isArray(d.L)&&d.L.length)LOG=d.L.filter(l=>OP[l.o]).map(l=>({o:OP[l.o],t:l.t,ty:l.ty,txt:l.txt}));disp.coins=S.coins;disp.cry=S.cry;return true}
+function redrawAll(){drawPlanet();drawBuilds();drawTop();drawNear();drawQuick();drawDays();drawLog();if(curV==='gear')drawGear()}
+const INIT=(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData)||'';
+function saveState(force){const d=snap();const js=JSON.stringify(d);if(!force&&js===lastSent)return;lastSent=js;saveTs=Date.now();
+  try{localStorage.setItem(SKEY,JSON.stringify({ts:saveTs,d}))}catch(e){}
+  if(INIT){const body=JSON.stringify({initData:INIT,state:d,ts:saveTs});try{if(force&&navigator.sendBeacon){navigator.sendBeacon('/api/save',new Blob([body],{type:'application/json'}))}else fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body,keepalive:true}).catch(()=>{})}catch(e){}}}
+let localTs=0;(function loadLocal(){try{const r=JSON.parse(localStorage.getItem(SKEY)||'null');if(r&&r.d&&applyState(r.d))localTs=r.ts||0;else if(r&&r.S&&applyState(r))localTs=1}catch(e){}})();
+if(INIT){fetch('/api/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:INIT})}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.state&&j.ts>localTs){applyState(j.state);localTs=j.ts;redrawAll()}lastSent=''}).catch(()=>{})}
+setInterval(()=>saveState(false),5000);addEventListener('pagehide',()=>saveState(true));document.addEventListener('visibilitychange',()=>{if(document.hidden)saveState(true)});
+try{window.Telegram&&Telegram.WebApp&&Telegram.WebApp.onEvent&&Telegram.WebApp.onEvent('viewportChanged',()=>saveState(false))}catch(e){}
 /* ---- native feel ---- */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
 document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});
