@@ -190,7 +190,7 @@ img{-webkit-user-drag:none;user-select:none}
 .slot.e img{opacity:.25;filter:grayscale(1)}
 .slot .up{position:absolute;right:-5px;top:-5px;width:20px;height:20px;border-radius:10px;background:var(--grn);color:#0C3A1E;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 0 #0C3A1E}
 .sL{grid-column:1}.sR{grid-column:3}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px var(--pad) 0}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px var(--pad) 0}
 .st{padding:10px 6px;border-radius:16px;background:#160F2C;border:1px solid var(--ln);text-align:center}
 .st small{display:block;font-size:11px;color:var(--mu);font-weight:500}
 .st b{font-family:var(--fd);font-weight:400;font-size:20px;font-variant-numeric:tabular-nums}
@@ -376,6 +376,16 @@ img{-webkit-user-drag:none;user-select:none}
 .ldb{width:180px;height:8px;border-radius:4px;background:rgba(255,255,255,.15);margin-top:22px;overflow:hidden}
 .ldb i{display:block;height:100%;width:0;background:linear-gradient(90deg,#9A5CFF,#FFC53D);border-radius:4px}
 @media (min-width:700px){.app{box-shadow:0 0 0 1px rgba(190,160,255,.08)}}
+.st{padding:10px 2px}.st b{font-size:18px}
+.bubble.full{box-shadow:0 0 0 3px #FF5A7A,0 0 24px rgba(255,90,122,.7)}
+.qb .qt{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);min-width:34px;height:18px;padding:0 5px;border-radius:9px;background:#120B26;border:1px solid var(--ln);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.qb .qt:empty{display:none}
+.qb .qn{position:absolute;top:-2px;right:-2px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #160F2C}
+.qb.rdy{box-shadow:0 0 0 2px #5AD1FF,0 0 16px rgba(90,209,255,.6)}
+.cost.ok{background:linear-gradient(90deg,#3BD47A,#2AA860);color:#06200F}
+.hpbar{height:20px}.hpn{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8);z-index:2;font-variant-numeric:tabular-nums}
+.srow b{text-align:right;max-width:62%}
+.cap .stk{height:26px;font-size:12px;padding:0 8px 0 3px;gap:3px}.cap .stk img,.cap .stk svg{width:18px;height:18px}.cap .stock{gap:5px;margin-top:8px}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -400,6 +410,7 @@ img{-webkit-user-drag:none;user-select:none}
   </div>
   <div class="hx cap"><div class="in">
     <h1>Captain</h1>
+    <div class="stock" id="capst" style="margin-top:8px"></div>
     <div class="lv"><span id="lvT"></span><span id="xpT"></span></div>
     <div class="bar"><i id="xpB"></i></div>
     <div class="stock" id="stock"></div>
@@ -470,8 +481,8 @@ img{-webkit-user-drag:none;user-select:none}
 <div class="ov" id="btl">
   <div class="bi" id="bi"><div class="half l"></div><div class="half r"></div><div class="stripe"></div><img class="ml" id="biA" data-a="hero" alt=""><img class="mr" id="biB" alt=""><div class="nm nl">MAKS</div><div class="nm nr" id="biNB"></div><div class="vs" id="biVS">VS</div></div>
   <div class="arena" id="arena"><div class="floor"></div><img class="pA" data-a="p1" alt=""><img class="pB" id="arPB" alt="">
-    <div class="hpw a"><b>MAKS</b><div class="hpbar"><i class="gh" id="ghA"></i><i class="v" id="hvA"></i></div></div>
-    <div class="hpw b"><b id="hnB"></b><div class="hpbar"><i class="gh" id="ghB"></i><i class="v" id="hvB"></i></div></div>
+    <div class="hpw a"><b>MAKS</b><div class="hpbar"><i class="gh" id="ghA"></i><i class="v" id="hvA"></i><span class="hpn" id="hnAn"></span></div></div>
+    <div class="hpw b"><b id="hnB"></b><div class="hpbar"><i class="gh" id="ghB"></i><i class="v" id="hvB"></i><span class="hpn" id="hnBn"></span></div></div>
     <div class="ftr a" id="fA"><span class="sh"></span><img data-a="hero" alt=""></div><div class="ftr b" id="fB"><span class="sh"></span><img id="fBi" alt=""></div>
     <button class="skip" id="bSkip">Skip <span data-svg="ff" data-s="16"></span></button></div>
   <div class="res2" id="res2"><div class="rays"></div><div class="ovc"><h2 class="bigT" id="ban"></h2><div class="stars3" id="st3"></div><div class="loot" id="loot"></div><button class="claim" id="bGo">Collect</button></div></div>
@@ -581,8 +592,8 @@ function upBuild(b){const card=document.querySelector(`.bcard[data-i="${BLD.inde
 const heroIdle=G.to('#heroImg',{y:-5,scaleY:1.02,scaleX:.99,duration:1.5,repeat:-1,yoyo:true,ease:'sine.inOut'});
 G.to('.glow',{scale:1.08,opacity:.8,duration:2.4,repeat:-1,yoyo:true,ease:'sine.inOut'});
 let mA=0;(function moonLoop(){mA+=.008;const x=Math.cos(mA)*178,y=Math.sin(mA)*58,r=-14*Math.PI/180,front=Math.sin(mA)>0;$('moon').style.transform=`translate(${x*Math.cos(r)-y*Math.sin(r)}px,${x*Math.sin(r)+y*Math.cos(r)}px) scale(${.75+.3*(Math.sin(mA)+1)/2})`;$('moon').style.zIndex=front?2:0;$('moon').style.opacity=front?1:.55;requestAnimationFrame(moonLoop)})();
-setInterval(()=>{S.pending+=3+BLD[0].lv*2;const st=stats();if(st.auto>=1&&S.pending>=60){const g=S.pending;S.pending=0;S.coins+=g;if(st.auto===3)S.cry+=1;drawTop();if(curV==='planet'){const c=rc($('bub'));dmgText(c.x,c.y,'+'+g,'g')}}
-  $('pend').textContent=fmt(S.pending);const b=$('bub'),show=S.pending>=40;if(show&&!b.classList.contains('show')){b.classList.add('show');G.from(b,{scale:0,duration:.5,ease:'back.out(3)'})}else if(!show)b.classList.remove('show')},1000);
+setInterval(()=>{const cap=capOf();S.pending=Math.min(cap,S.pending+rateOf());const st=stats();if(st.auto>=1&&S.pending>=Math.min(cap,60*(4-st.auto))){const g=S.pending;S.pending=0;S.coins+=g;if(st.auto===3)S.cry+=1;drawTop();if(curV==='planet'){const c=rc($('bub'));dmgText(c.x,c.y,'+'+g,'g')}}
+  $('pend').textContent=fmt(S.pending);const b=$('bub'),show=S.pending>=40;b.classList.toggle('full',S.pending>=cap);if(show&&!b.classList.contains('show')){b.classList.add('show');G.from(b,{scale:0,duration:.5,ease:'back.out(3)'})}else if(!show)b.classList.remove('show')},1000);
 G.to('#bub',{y:-8,duration:1.2,repeat:-1,yoyo:true,ease:'sine.inOut'});$('bub').onclick=()=>$('collect').click();
 setInterval(()=>{if(curV!=='planet'||document.hidden)return;const r=document.createElement('img');r.className='rise';r.src=IC[0];r.alt='';r.style.left=(35+Math.random()*30)+'%';r.style.top='46%';$('stage').appendChild(r);G.to(r,{y:-90-Math.random()*40,x:(Math.random()-.5)*40,rotation:(Math.random()-.5)*90,opacity:0,duration:2.2,ease:'power1.out',onComplete:()=>r.remove()})},1500);
 $('collect').onclick=()=>{if(S.pending<1)return;const g=S.pending;S.pending=0;$('pend').textContent='0';$('bub').classList.remove('show');const from=rc($('collect'));
@@ -675,7 +686,7 @@ function attack(a,b,dmg,crit,col,special,miss){return new Promise(res=>{const Aa
       SFX.hit();burst(ex,ey,{n:crit?50:30,speed:crit?12:8,size:crit?8:6,colors:col==='blue'?['#7FE3FF','#fff','#9A5CFF']:['#FFB27A','#FF4D6D','#fff']});burst(ex,ey,{n:10,type:'star',speed:6,size:7});
       G.fromTo(Bt.querySelector('img'),{filter:'brightness(4) saturate(0)'},{filter:'brightness(1) saturate(1)',duration:.35});G.timeline().to(Bt,{x:dir*26,rotation:dir*6,duration:.08}).to(Bt,{x:0,rotation:0,duration:.5,ease:'elastic.out(1,.4)'});
       shake($('arena'),crit?26:12,crit?.5:.3);dmgText(ex,ey-90,(crit?'CRIT! ':'')+'-'+dmg,crit?'crit':'');res()}})})}
-function result(o,win,hA){try{TG&&TG.disableClosingConfirmation&&TG.disableClosingConfirmation()}catch(e){}const R=$('res2');R.style.display='block';$('bSkip').style.display='none';R.classList.toggle('lose',!win);$('ban').textContent=win?'VICTORY!':'DEFEAT';const stars=win?(hA>66?3:hA>33?2:1):0;const loot=win?8+Math.round(Math.random()*8):0;
+function resultBase(o,win,hA){try{TG&&TG.disableClosingConfirmation&&TG.disableClosingConfirmation()}catch(e){}const R=$('res2');R.style.display='block';$('bSkip').style.display='none';R.classList.toggle('lose',!win);$('ban').textContent=win?'VICTORY!':'DEFEAT';const stars=win?(hA>66?3:hA>33?2:1):0;const loot=win?8+Math.round(Math.random()*8):0;
   $('st3').innerHTML=[0,1,2].map(i=>`<span style="opacity:0;display:inline-block">${STAR(i===1?84:64,i<stars?'#FFD23F':'#4A4266')}</span>`).join('');
   $('loot').innerHTML=win?`<div><img class="ii" src="${RIMG[o.res]}" alt="">+${loot}</div><div><img class="ii" src="${RIMG[o.ret]}" alt="">+2</div><div><img class="ii" src="${COIN}" alt="">+400</div><div><img class="ii" src="${IC[14]}" alt="">+1</div>`:`<div><img class="ii" src="${COIN}" alt="">−250</div>`;
   (win?SFX.win:SFX.lose)();const tl=G.timeline();tl.from(R,{opacity:0,duration:.25}).fromTo('#ban',{scale:4,opacity:0},{scale:1,opacity:1,duration:.4,ease:'back.out(2.2)',onComplete:()=>{SFX.slam();shake(R,16,.4);if(win){const c=rc($('ban'));confetti(c.x,c.y)}}});
@@ -708,7 +719,7 @@ function drawGear(){const st=stats(),si=setInfo();
   $('mats').innerHTML=['fabric','gear','treat','core'].map(k=>`<span class="stk"><img class="ii" src="${RIMG[k]}" alt="${RNAME[k]}">${fmt(have(k))}</span>`).join('')+`<span class="stk"><img class="ii" src="${COIN}" alt="">${fmt(S.coins)}</span>`;
   const au=['transparent','#5CC0FF','#D08CFF','#FFD23F'][si.best];$('aura').style.setProperty('--auc',au);G.to('#aura',{opacity:si.best?1:0,duration:.5});$('herobox').querySelector('.in').style.setProperty('--aura',si.best?TIER[si.best].b:'rgba(154,92,255,.45)');
   $('slots').innerHTML=GEAR.map(g=>{const s=S.gear[g.id],t=tierOf(s.lv),[side,row]=SLOTPOS[g.id].split(';'),T=TIER[t],ok=canUp(g).ok;return `<button class="slot ${side}${s.own?'':' e'}" style="grid-row:${row};--tc1:${T.d};--tc2:#16112C;--tcb:${s.own?T.c:'rgba(255,255,255,.15)'}" data-id="${g.id}" aria-label="${g.n}"><img class="ii" src="${g.img[t]}" alt=""><span class="lvb">${s.own?'Lv '+s.lv:'—'}</span>${ok?`<span class="up">${svg('up',12,3)}</span>`:''}</button>`}).join('');
-  $('stats').innerHTML=[['Power',st.pw],['Shield',st.sh],['Crit',st.crit+'%'],['Dodge',st.dodge+'%']].map(([k,v])=>`<div class="st"><small>${k}</small><b>${v}</b></div>`).join('');
+  $('stats').innerHTML=[['HP',fmt(st.hp)],['Power',st.pw],['Shield',st.sh],['Crit',st.crit+'%'],['Dodge',st.dodge+'%']].map(([k,v])=>`<div class="st"><small>${k}</small><b>${v}</b></div>`).join('');
   const nt=TIER[si.next];$('setb').innerHTML=si.best===3?`<div class="r1"><b style="color:${TIER[3].c}">Legendary set complete</b><span>+30% power</span></div>`:`<div class="r1"><b>${nt.n} set bonus <span style="color:var(--mu);font-weight:500">· aura and +${si.next*10}% power</span></b><span>${Math.min(3,si.cnt)} / 3</span></div><div class="pips">${[0,1,2].map(i=>`<i style="${i<si.cnt?`background:${nt.c}`:''}"></i>`).join('')}</div>`;
   $('ggrid').innerHTML=GEAR.map(g=>{const s=S.gear[g.id],t=tierOf(s.lv),T=TIER[t],cu=canUp(g);let cb;if(!s.own)cb=`<span class="cost">${TGSTAR(18)}${g.stars} Stars</span>`;else if(s.lv>=15)cb=`<span class="cost">Max level</span>`;else{const c=cost(g,s.lv);const main=c.core?'core':c[g.part]?g.part:'coin';cb=`<span class="cost ${cu.ok?'ok':'no'}">${cu.ok?'Upgrade':cu.why.startsWith('Needs')?'Level '+gate(s.lv+1):'Upgrade'}<img class="ii" src="${RIMG[main]}" alt="">${fmt(c[main])}</span>`}
     const segs=Array.from({length:15},(_,i)=>`<i class="${i<s.lv?'f':[4,9,14].includes(i)?'m':''}"></i>`).join('');
@@ -720,7 +731,7 @@ function openItem(g){const s=S.gear[g.id],t=tierOf(s.lv),T=TIER[t];
   const cu=canUp(g),max=s.lv>=15,c=max?{}:cost(g,s.lv),nt=tierOf(s.lv+1),pc=g.pw,sc=g.sh;
   openSheet(`<div class="ish" style="--tcol:${T.c};--tray:${T.b}"><div class="head"><span class="tier">${T.n.toUpperCase()}</span><h3>${g.n}</h3></div><div class="stage2"><div class="rays2"></div><img class="big ii" id="ibig" src="${g.img[t]}" alt=""></div>
   <div class="lvrow"><span>Lv ${s.lv}</span>${max?'':`${svg('chev',20)}<span class="to">Lv ${s.lv+1}</span>`}</div>
-  <div class="srows">${pc?`<div class="srow"><span><img class="ii" src="${IC[9]}" alt="">Power</span><b>${pc*s.lv}${max?'':`<em>+${pc}</em>`}</b></div>`:''}${sc?`<div class="srow"><span><img class="ii" src="${IC[8]}" alt="">Shield</span><b>${sc*s.lv}${max?'':`<em>+${sc}</em>`}</b></div>`:''}</div>
+  <div class="srows">${GHP[g.id]?`<div class="srow"><span>${HEART(22)}HP</span><b>${GHP[g.id]*s.lv}${max?'':`<em>+${GHP[g.id]}</em>`}</b></div>`:''}${pc?`<div class="srow"><span><img class="ii" src="${IC[9]}" alt="">Power</span><b>${pc*s.lv}${max?'':`<em>+${pc}</em>`}</b></div>`:''}${sc?`<div class="srow"><span><img class="ii" src="${IC[8]}" alt="">Shield</span><b>${sc*s.lv}${max?'':`<em>+${sc}</em>`}</b></div>`:''}</div>
   <div class="perk"><b style="color:${T.c}">${g.perk[t]}</b>${t<3?`<div class="nx">At level ${[5,10,15][t]} · ${TIER[t+1].n}: ${g.perk[t+1]}</div>`:'<div class="nx">Maximum power reached</div>'}</div>
   <div class="evo">${g.img.map((x,i)=>`<div class="${i<=t?(i===t?'cur':''):'lk'}"><img class="ii" src="${x}" alt="">${i>t?`<span class="lki">${svg('lock',12)}</span>`:''}<small>${['Lv 1','Lv 5','Lv 10','Lv 15'][i]}</small></div>`).join('')}</div>
   ${max?'':`<div class="costs" id="costs">${Object.entries(c).map(([k,v])=>`<span class="stk${have(k)<v?' no':''}"><img class="ii" src="${RIMG[k]}" alt="">${fmt(v)}<span style="color:var(--mu);font-weight:500;margin-left:2px">/ ${fmt(have(k))}</span></span>`).join('')}</div>`}
@@ -795,7 +806,7 @@ const RUD={"Tiny worlds. Big meetups.":"Маленькие миры. Больш�
 "+1 gear  +1 treat":"+1 шестерёнка  +1 лакомство","Formed an alliance":"Заключён союз","Raid lost: −250 stardust. Upgrade your gear":"Набег проигран: −250 пыли. Улучши снаряжение","just now":"только что","yesterday":"вчера","last night":"ночью",
 "+Star pod":"+Звёздная капсула","+Legendary pod":"+Легендарная капсула","+1 core":"+1 ядро","Legendary pod":"Легендарная капсула","1 core":"1 ядро","Trader":"Торговец","Raider":"Налётчик","Hermit":"Отшельник","Kepler-3":"Кеплер-3",
 "Auto-traded 15 leaves for 6 pearls":"Сам обменял 15 листьев на 6 жемчужин","Tried to raid you. Your shield held":"Пытался напасть. Щит выдержал","Waved and left you 30 ice":"Помахал и оставил 30 льда","Shared a star map with you":"Поделился звёздной картой",
-"Auto-traded 20 leaves for 8 pearls":"Сам обменял 20 листьев на 8 жемчужин","Attacked you. Your shield held":"Напал на тебя. Щит выдержал","Left you 2 treats as a gift":"Оставил 2 лакомства в подарок","Traded 6 ice for 3 fabric":"Обменял 6 льда на 3 ткани","While you're offline, your planet greets everyone and gives small gifts.":"Пока тебя нет, планета здоровается со всеми и дарит маленькие подарки.","While you're offline, your planet trades fairly and refuses fights.":"Пока тебя нет, планета честно торгует и не принимает бои.","While you're offline, your planet raises shields and ignores visitors.":"Пока тебя нет, планета поднимает щиты и никого не пускает."};
+"Auto-traded 20 leaves for 8 pearls":"Сам обменял 20 листьев на 8 жемчужин","Attacked you. Your shield held":"Напал на тебя. Щит выдержал","Left you 2 treats as a gift":"Оставил 2 лакомства в подарок","Traded 6 ice for 3 fabric":"Обменял 6 льда на 3 ткани","HP":"Здоровье","While you're offline, your planet greets everyone and gives small gifts.":"Пока тебя нет, планета здоровается со всеми и дарит маленькие подарки.","While you're offline, your planet trades fairly and refuses fights.":"Пока тебя нет, планета честно торгует и не принимает бои.","While you're offline, your planet raises shields and ignores visitors.":"Пока тебя нет, планета поднимает щиты и никого не пускает."};
 const RUN={leaf:'Листья',ice:'Лёд',lava:'Лава',pearl:'Жемчуг',gear:'Шестерёнки',fabric:'Ткань',treat:'Лакомства',core:'Ядра',crystal:'Кристаллы',coin:'Звёздная пыль'};
 const RUPAT=[[/^· (.+)$/,(m,x)=>'· '+tr(x)],[/^([\d,]+) \/ ([\d,]+) xp$/,'$1 / $2 оп.'],[/^Level (\d+) \/ 30$/,'Ур. $1 / 30'],[/^Captain · level (\d+)$/,'Капитан · уровень $1'],[/^Level (\d+)$/,'Уровень $1'],[/^Lv (\d+)$/,'Ур. $1'],[/^LEVEL (\d+)$/,'УРОВЕНЬ $1'],[/^(\d+) in range$/,'Рядом: $1'],
  [/^Day (\d+)$/,'День $1'],[/^Day (\d+) of 16 · come back every day for bigger prizes$/,'День $1 из 16 · заходи каждый день, награды растут'],[/^In range · (\d+) h (\d+) min left$/,'В зоне · осталось $1 ч $2 мин'],[/^(\d+)h (\d+)m$/,'$1 ч $2 мин'],[/^(.+) · (\d+)h (\d+)m$/,'$1 · $2 ч $3 мин'],
@@ -843,10 +854,150 @@ try{window.Telegram&&Telegram.WebApp&&Telegram.WebApp.onEvent&&Telegram.WebApp.o
 /* ---- native feel ---- */
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
 document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});
-let lastTouch=0;document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTouch<300&&!e.target.closest('input,textarea'))e.preventDefault();lastTouch=n},{passive:false});
 document.addEventListener('contextmenu',e=>{if(!e.target.closest('input,textarea'))e.preventDefault()});
 document.addEventListener('dragstart',e=>e.preventDefault());
 document.addEventListener('wheel',e=>{if(e.ctrlKey)e.preventDefault()},{passive:false});
+
+/* ================= v3: fixes and finished systems ================= */
+const T=(en,ru)=>LANG==='ru'?ru:en;
+const busy=new Set();const lock=(k,ms=900)=>{if(busy.has(k))return false;busy.add(k);setTimeout(()=>busy.delete(k),ms);return true};
+const anyOv=()=>!!document.querySelector('.ov.on')||$('sh').classList.contains('open');
+/* ---- buildings with real effects ---- */
+const BMAX=10;
+const BE=[lv=>({rate:2+2*lv,leaf:lv}),lv=>({cap:150+150*lv}),lv=>({hp:20*lv,sh:3*lv}),lv=>({rate:Math.max(2,6-lv)}),lv=>({radar:8*lv}),lv=>({loot:1+.25*lv})];
+const capOf=()=>BE[1](BLD[1].lv).cap,rateOf=()=>BE[0](BLD[0].lv).rate;
+function bEff(i,lv){const e=BE[i](lv);switch(i){case 0:return T(`+${e.rate*60} stardust / min · +${e.leaf} leaves per collect`,`+${e.rate*60} пыли в минуту · +${e.leaf} листьев за сбор`);case 1:return T(`Storage holds ${fmt(e.cap)} stardust`,`Хранилище на ${fmt(e.cap)} пыли`);case 2:return T(`+${e.hp} HP and +${e.sh} shield in fights`,`+${e.hp} здоровья и +${e.sh} щита в боях`);
+  case 3:return T(`Trade rate: ${e.rate} leaves for 2 goods`,`Курс обмена: ${e.rate} листьев за 2 товара`);case 4:return T(`Radar range +${e.radar}%`,`Дальность радара +${e.radar}%`);case 5:return lv?T(`Expedition loot ×${e.loot.toFixed(2).replace(/\.?0+$/,'')}`,`Добыча экспедиций ×${e.loot.toFixed(2).replace(/\.?0+$/,'')}`):T('Opens at captain level 9','Откроется на 9 уровне капитана')}}
+function bShort(i,lv){const e=BE[i](lv);return [T(`+${e.rate*60}/min`,`+${e.rate*60}/мин`),T(`Holds ${fmt(e.cap)}`,`Вмещает ${fmt(e.cap)}`),T(`+${e.hp} HP`,`+${e.hp} здоровья`),T(`${e.rate} leaves → 2`,`${e.rate} листьев → 2`),T(`Radar +${e.radar}%`,`Радар +${e.radar}%`),lv?T(`Loot ×${e.loot}`,`Добыча ×${e.loot}`):T('Captain lv 9','Капитан ур. 9')][i]}
+function bGate(b){const i=BLD.indexOf(b);if(i===5&&b.lv===0&&S.lv<9)return 9;if(b.lv>=S.lv)return b.lv+1;return 0}
+function drawBuilds(){$('builds').innerHTML=BLD.map((b,i)=>{const g=bGate(b),mx=b.lv>=BMAX;return `<button class="hx bcard${b.lv?'':' lock'}" data-i="${i}"><span class="in"><b>${b.n}</b><small>${b.lv?T('Level ','Уровень ')+b.lv:T('Not built','Не построено')}<br>${bShort(i,Math.max(1,b.lv))}</small><img class="bi2" src="${b.img}" alt=""><span class="cost${!mx&&!g&&S.coins>=b.cost?' ok':''}">${mx?T('Max','Макс.'):g?T('Captain lv ','Капитан ур. ')+g:`<img class="ii" src="${COIN}" alt="">${fmt(b.cost)}`}</span></span></button>`}).join('');$('builds').querySelectorAll('.bcard').forEach(c=>c.onclick=()=>openBuild(+c.dataset.i))}
+function drawPlanet(){const sp=$('spin');sp.querySelectorAll('.bd').forEach(e=>e.remove());BLD.forEach((b,i)=>{if(b.a==null||!b.lv)return;const e=document.createElement('button');e.className='bd';e.style.transform=`rotate(${b.a}deg) translateY(-108px)`;e.innerHTML=`<img src="${b.img}" alt="${b.n}">`;e.onclick=()=>openBuild(i);sp.appendChild(e)})}
+function upBuild(b){openBuild(BLD.indexOf(b))}
+function openBuild(i){const b=BLD[i],mx=b.lv>=BMAX,g=bGate(b),can=!mx&&!g&&S.coins>=b.cost;
+  openSheet(`<div class="ish" style="--tcol:#FFC53D;--tray:rgba(255,200,90,.25)"><div class="head"><span class="tier">${b.lv?T('LEVEL ','УРОВЕНЬ ')+b.lv:T('NOT BUILT','НЕ ПОСТРОЕНО')}</span><h3>${b.n}</h3></div><div class="stage2"><div class="rays2"></div><img class="big ii" id="bbig" src="${b.img}" alt=""></div>
+  <div class="srows"><div class="srow"><span>${T('Now','Сейчас')}</span><b>${b.lv?bEff(i,b.lv):'—'}</b></div>${mx?'':`<div class="srow"><span>${T('Next','Дальше')}</span><b style="color:var(--grn)">${bEff(i,b.lv+1)}</b></div>`}</div>
+  ${mx?'':`<div class="costs" style="margin-top:16px"><span class="stk${S.coins<b.cost?' no':''}"><img class="ii" src="${COIN}" alt="">${fmt(b.cost)}<span style="color:var(--mu);font-weight:500;margin-left:2px">/ ${fmt(S.coins)}</span></span></div>`}
+  <button class="claim sm" id="bUp" style="margin-top:14px"${can?'':' disabled'}>${mx?T('Max level','Макс. уровень'):b.lv?T('Upgrade','Улучшить'):T('Build','Построить')}</button><div class="why">${mx?'':g?T(`Needs captain level ${g}`,`Нужен ${g} уровень капитана`):S.coins<b.cost?T(`You need ${fmt(b.cost-S.coins)} more stardust`,`Не хватает ${fmt(b.cost-S.coins)} пыли`):''}</div></div>`);
+  G.from('#bbig',{scale:.4,duration:.6,ease:'back.out(2)'});if(can)$('bUp').onclick=()=>{if(!lock('b'+i,1500))return;$('bUp').disabled=true;const c=rc($('bbig'));
+    flyTo(COIN,rc(document.querySelector('#costs')||$('bUp')),c,6,26,null,()=>{if(S.coins<b.cost)return;S.coins-=b.cost;b.lv++;b.cost=Math.round(b.cost*1.6/10)*10;S.xp+=200+60*b.lv;SFX.lvl();burst(c.x,c.y,{n:36,type:'star',speed:9,size:7});burst(c.x,c.y+40,{n:14,type:'dust',speed:3,g:-.02,size:10,life:50});dmgText(c.x,c.y-90,T('LEVEL ','УРОВЕНЬ ')+b.lv);
+      G.fromTo('#bbig',{scale:.5,filter:'brightness(2.5)'},{scale:1,filter:'brightness(1)',duration:.8,ease:'elastic.out(1.1,.45)'});drawBuilds();drawPlanet();drawTop();saveState(true);setTimeout(()=>{if($('sh').classList.contains('open'))openBuild(i)},900)})}}
+/* ---- stats with HP ---- */
+const GHP={helmet:6,jacket:10,cape:2,boots:4,blaster:0,pet:3};
+function stats(){let pw=20,sh=6,hp=100+8*S.lv;GEAR.forEach(g=>{const st=S.gear[g.id];if(st.own){pw+=g.pw*st.lv;sh+=g.sh*st.lv;hp+=GHP[g.id]*st.lv}});const tw=BE[2](BLD[2].lv);hp+=tw.hp;sh+=tw.sh;const sb=setInfo().best;const k=1+sb*.1;const t=id=>S.gear[id].own?tierOf(S.gear[id].lv):-1;
+  return{hp:Math.round(hp*k),pw:Math.round(pw*k),sh:Math.round(sh*k),crit:10+(t('cape')>=0?[0,5,10,18][t('cape')]:0),dodge:[0,6,12,20][Math.max(0,t('boots'))],critRed:[0,15,30,50][Math.max(0,t('jacket'))],rocket:[5,4,3,3][Math.max(0,t('blaster'))],dbl:t('blaster')===3,radar:[1,1.15,1.3,1.5][Math.max(0,t('helmet'))]+BE[4](BLD[4].lv).radar/100,auto:t('pet')}}
+const HEART=s=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.3-9.4C1.4 8.2 3.6 4.5 7.2 4.5c2 0 3.5 1.1 4.8 2.7 1.3-1.6 2.8-2.7 4.8-2.7 3.6 0 5.8 3.7 4.5 7.1C19.5 16.4 12 21 12 21z" fill="#FF5A7A" stroke="#2A0F45" stroke-width="1.2"/></svg>`;
+function drawCapStats(){const st=stats();$('capst').innerHTML=`<span class="stk">${HEART(18)}${fmt(st.hp)}</span><span class="stk"><img class="ii" src="${IC[9]}" alt="">${st.pw}</span><span class="stk"><img class="ii" src="${IC[8]}" alt="">${st.sh}</span>`}
+/* ---- top, level queue ---- */
+function drawTop(){G.to(disp,{coins:S.coins,cry:S.cry,duration:.9,ease:'power2.out',overwrite:true,onUpdate:()=>{$('coN').textContent=fmt(disp.coins);$('crN').textContent=fmt(disp.cry)}});
+  const need=xpNeed(S.lv);$('xpT').textContent=T(`${fmt(Math.min(S.xp,need))} / ${fmt(need)} xp`,`${fmt(Math.min(S.xp,need))} / ${fmt(need)} оп.`);$('xpB').style.setProperty('--w',Math.min(100,S.xp/need*100)+'%');$('lvT').textContent=T(`Level ${S.lv} / 30`,`Ур. ${S.lv} / 30`);$('meLv').textContent=T(`Captain · level ${S.lv}`,`Капитан · уровень ${S.lv}`);
+  drawStock();drawCapStats();gearDot();$('fuel').textContent=S.fuel;$('pend').textContent=`${fmt(S.pending)}`}
+setInterval(()=>{if(!lvBusy&&S.xp>=xpNeed(S.lv)&&!anyOv()&&S.lv<30){lvBusy=true;levelUp()}},700);
+const _lvUp=levelUp;
+/* ---- pods: queue, guaranteed rarity, single collect ---- */
+let podQ=0;
+function openPod(min=0){if(S.pods<1)return;if(anyOv()&&!$('pod').classList.contains('on')){setTimeout(()=>openPod(min),700);return}if($('pod').classList.contains('on'))return;
+  S.pods--;drawQuick();const r=Math.random();let final=r<.05?3:r<.2?2:r<.5?1:0;final=Math.max(final,min);pod={cur:0,final,taps:0,open:false,min};const o=$('pod');o.classList.add('on');setPodLook();$('podLoot').innerHTML='';$('podGo').style.display='none';$('podGo').disabled=false;$('podHint').style.display='block';$('taps').style.display='flex';[...$('taps').children].forEach(i=>i.className='');
+  G.killTweensOf('#podB img');G.set('#podB img',{y:0});G.fromTo('#podB',{scale:0,rotation:-30},{scale:1,rotation:0,duration:.7,ease:'elastic.out(1,.5)'});G.to('#podB img',{y:-8,duration:1,repeat:-1,yoyo:true,ease:'sine.inOut'});SFX.whoosh();saveState(true)}
+$('podB').onclick=()=>{if(!pod||pod.open||!lock('podtap',180))return;pod.taps++;$('taps').children[pod.taps-1].className='u';const left=4-pod.taps,need=pod.final-pod.cur;let up=false;if(need>0&&(left<need||Math.random()<.45)){pod.cur++;up=true}
+  const c=rc($('podB'));if(up){setPodLook();SFX.lvl();HAP('medium');G.fromTo('#podB',{scale:1.35},{scale:1,duration:.6,ease:'elastic.out(1.2,.4)'});burst(c.x,c.y,{n:40,type:'star',speed:10,size:7,colors:[PODT[pod.cur].c,'#fff']});G.fromTo('#podRar',{scale:2},{scale:1,duration:.5,ease:'back.out(3)'});shake($('pod'),12,.35)}
+  else{SFX.pop();HAP('light');G.fromTo('#podB',{scale:.9},{scale:1,duration:.4,ease:'elastic.out(1.2,.4)'});burst(c.x,c.y,{n:12,speed:5,colors:[PODT[pod.cur].c,'#fff']})}
+  if(pod.taps>=4){pod.open=true;setTimeout(openPodLoot,650)}};
+function openPodLoot(){const t=pod.cur;const part=['fabric','gear','treat'][Math.random()*3|0];const L=[{k:'coin',v:[400,900,2000,5000][t]},{k:part,v:[2,4,7,12][t]}];if(t>=1)L.push({k:'crystal',v:[0,10,25,60][t]});if(t>=2)L.push({k:'core',v:t===3?2:1});if(t>=2)L.push({k:'fuel',v:1});
+  const c=rc($('podB'));SFX.slam();HAP('heavy');burst(c.x,c.y,{n:80,speed:14,size:8,colors:[PODT[t].c,'#fff','#FFD23F']});confetti(c.x,c.y,[PODT[t].c,'#fff','#FFD23F']);G.to('#podB',{scale:0,duration:.25,ease:'back.in(2)'});
+  $('podHint').style.display='none';$('taps').style.display='none';$('podLoot').innerHTML=L.map(x=>`<div><img class="ii" src="${x.k==='fuel'?IC[10]:RIMG[x.k]}" alt="">+${fmt(x.v)}</div>`).join('');
+  G.fromTo('#podLoot div',{y:40,opacity:0,rotationY:90},{y:0,opacity:1,rotationY:0,stagger:.12,duration:.45,ease:'back.out(2)'});$('podGo').style.display='flex';G.fromTo('#podGo',{y:60,opacity:0},{y:0,opacity:1,duration:.4,delay:.4,ease:'back.out(2)'});
+  $('podGo').onclick=()=>{if($('podGo').disabled)return;$('podGo').disabled=true;L.forEach(x=>{if(x.k==='coin')S.coins+=x.v;else if(x.k==='crystal')S.cry+=x.v;else if(x.k==='core')S.cores+=x.v;else if(x.k==='fuel')S.fuel+=x.v;else S.parts[x.k]+=x.v});saveState(true);
+    G.to('#pod',{opacity:0,duration:.3,onComplete:()=>{$('pod').classList.remove('on');G.set('#pod',{opacity:1});G.set('#podB',{scale:1});pod=null;drawTop();drawQuick();if(curV==='gear')drawGear();toast(T('Rewards added','Награды получены'))}})}}
+/* ---- collect with storage cap ---- */
+$('collect').onclick=()=>{if(S.pending<1||!lock('collect',400))return;const g=S.pending,lf=BE[0](BLD[0].lv).leaf;S.pending=0;$('pend').textContent='0';$('bub').classList.remove('show','full');const from=rc($('collect'));
+  flyTo(COIN,from,rc($('coN')),Math.min(12,4+Math.round(g/15)),32,()=>bump($('coN').parentElement,1.12),()=>{S.coins+=g;S.xp+=Math.round(g*1.2);drawTop();const c=rc($('coN'));dmgText(c.x,c.y+40,'+'+fmt(g));saveState(true)});
+  flyTo(IC[0],from,rc($('stock')),3,24,null,()=>{S.res.leaf+=lf;drawStock();bump($('stock'),1.08)});burst(from.x,from.y,{n:24,speed:7,colors:['#FFD23F','#fff']})};
+/* ---- comet + expedition timers on quick bar ---- */
+S.cometAt=S.cometAt||0;S.expAt=S.expAt||0;
+function drawQuick(){$('quick').innerHTML=QK.map((q,i)=>`<button class="qb${q.hot?' hot':''}" data-i="${i}" aria-label="${q.t}"><img class="ii" src="${q.gear?gimg(GEAR[1]):q.img}" alt="">${q.pod&&S.pods?`<span class="qn">${S.pods}</span>`:''}<span class="qt" data-q="${i}"></span></button>`).join('');$('quick').querySelectorAll('.qb').forEach(b=>b.onclick=()=>QK[+b.dataset.i].a());tickQuick()}
+const mmss=ms=>{const s=Math.ceil(ms/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`};
+function tickQuick(){const n=Date.now();const e0=document.querySelector('.qt[data-q="0"]'),e1=document.querySelector('.qt[data-q="1"]');if(e0)e0.textContent=expOn?mmss(Math.max(0,S.expAt-n)):'';if(e1)e1.textContent=S.cometAt>n?mmss(S.cometAt-n):'';const cb=document.querySelector('.qb[data-i="1"]');if(cb)cb.classList.toggle('rdy',S.cometAt<=n)}
+setInterval(tickQuick,1000);
+QK[1].a=()=>comet();QK[0].a=()=>expedition();QK[2].a=()=>S.pods>0?openPod():toast(T('Win a raid, claim day rewards or skip a day to get a star pod','Капсулы дают за победы в набегах, награды дня и пропуск дня'));
+function comet(){const n=Date.now();if(S.cometAt>n){toast(T(`The next comet arrives in ${mmss(S.cometAt-n)}`,`Следующая комета через ${mmss(S.cometAt-n)}`));return}if(!lock('comet',3000))return;S.cometAt=n+3*60*1000;tickQuick();SFX.whoosh();
+  const st=$('stage'),sr=st.getBoundingClientRect();const c=document.createElement('div');c.style.cssText='position:fixed;z-index:84;width:26px;height:26px;margin:-13px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#9FE8FF 40%,#2A7BFF 75%,transparent 77%);box-shadow:0 0 30px 10px rgba(120,220,255,.8);pointer-events:none';document.body.appendChild(c);
+  const from={x:sr.right+20,y:sr.top+10},to=rc($('spin')),o={k:0};G.to(o,{k:1,duration:1.1,ease:'power1.in',onUpdate:()=>{const x=from.x+(to.x-from.x)*o.k,y=from.y+(to.y-from.y)*o.k;G.set(c,{left:x,top:y});burst(x,y,{n:3,speed:1.5,g:0,size:6,life:26,colors:['#9FE8FF','#fff','#5AD1FF']})},
+    onComplete:()=>{c.remove();SFX.hit();HAP('heavy');shake($('stage'),14,.4);burst(to.x,to.y,{n:60,speed:11,size:8,colors:['#9FE8FF','#fff','#C48BFF']});const part=['fabric','gear','treat'][Math.random()*3|0];
+      flyTo(CRY,to,rc($('crN')),8,30,()=>bump($('crN').parentElement,1.12),()=>{S.cry+=15;S.parts[part]+=1;S.xp+=120;drawTop();saveState(true)});dmgText(to.x,to.y-60,T('+15 crystals','+15 кристаллов'));setTimeout(()=>dmgText(to.x,to.y-20,'+1 '+ONE[part],'g'),300)}})}
+function expedition(){if(expOn){toast(T(`Your captain is back in ${mmss(Math.max(0,S.expAt-Date.now()))}`,`Капитан вернётся через ${mmss(Math.max(0,S.expAt-Date.now()))}`));return}if(!lock('exp',1000))return;expOn=true;const dur=Math.max(8000,30000-BLD[5].lv*3000);S.expAt=Date.now()+dur;tickQuick();heroIdle.pause();G.set('#heroImg',{y:0});const h=$('heroImg');SFX.whoosh();
+  const rk=document.createElement('img');rk.src=JET;rk.alt='';rk.style.cssText='position:absolute;left:36px;bottom:108px;width:60px;z-index:1;pointer-events:none';$('stage').appendChild(rk);
+  const tr2=setInterval(()=>{const r=rc(rk);burst(r.x,r.y+30,{n:3,dir:Math.PI/2,spread:.6,speed:4,g:.05,colors:['#FFB27A','#FFD23F','#fff'],size:6,life:24})},30);
+  G.timeline().to(h,{scaleY:.8,scaleX:1.1,duration:.15}).to(h,{scaleY:1.1,scaleX:.92,duration:.1}).to([h,rk],{y:-innerHeight,duration:.9,ease:'power2.in'},'<').add(()=>{clearInterval(tr2);toast(T('Your captain flew to asteroid Kepler-3','Капитан улетел на астероид Кеплер-3'))});
+  setTimeout(()=>{SFX.whoosh();const m=BE[5](BLD[5].lv).loot;G.timeline({onComplete:()=>{rk.remove();expOn=false;heroIdle.resume();tickQuick();const c=rc(h);burst(c.x,c.y+c.h/2,{n:20,type:'dust',speed:4,g:-.03,size:12,life:45});const cr=Math.round(12*m),co=Math.round(300*m);S.cry+=cr;S.parts.treat+=1;S.parts.gear+=1;S.coins+=co;S.xp+=200;drawTop();saveState(true);dmgText(c.x,c.y-70,T(`+${cr} crystals`,`+${cr} кристаллов`));setTimeout(()=>dmgText(c.x,c.y-30,T('+1 gear  +1 treat','+1 шестерёнка  +1 лакомство'),'g'),250)}})
+    .fromTo([h,rk],{y:-innerHeight},{y:0,duration:.8,ease:'power2.out'}).to(rk,{opacity:0,duration:.2}).to(h,{scaleY:.82,scaleX:1.12,duration:.1}).to(h,{scaleY:1,scaleX:1,duration:.5,ease:'elastic.out(1.2,.4)'})},dur)}
+/* ---- space: observatory radar, fuel steering ---- */
+OP.forEach(o=>{o.el.onclick=()=>{if(o.el.classList.contains('nb'))openEnc(o);else steer(o)}});
+function steer(o){openSheet(`<div class="ish"><div class="head"><h3>${o.n}</h3></div><div class="stage2"><img class="big ii" src="${o.pl}" alt="" style="animation:spin 40s linear infinite"></div><div class="fair" style="font-size:14px">${T(`${o.n} is too far away. Spend 1 fuel to steer your planet closer and meet now?`,`${o.n} слишком далеко. Потратить 1 топливо, чтобы подлететь и встретиться сейчас?`)}</div>
+  <div class="costs"><span class="stk${S.fuel<1?' no':''}"><img class="ii" src="${IC[10]}" alt="">1<span style="color:var(--mu);font-weight:500;margin-left:2px">/ ${S.fuel}</span></span></div><button class="claim sm" id="stB" style="margin-top:14px"${S.fuel<1?' disabled':''}>${T('Steer closer','Подлететь')}</button><div class="why">${S.fuel<1?T('No fuel left · get it from epic star pods and daily skips','Топлива нет · его дают эпические капсулы и новый день'):''}</div></div>`);
+  if(S.fuel>=1)$('stB').onclick=()=>{if(!lock('steer'))return;S.fuel--;drawTop();saveState(true);o.pull=1;closeSheet();SFX.whoosh();setTimeout(()=>openEnc(o),1300)}}
+function frame(){if(!spaceOn)return;const t=Date.now()/1000;cx.clearRect(0,0,W,H);
+  [[.8+Math.sin(t*.05)*.05,.2,'rgba(154,92,255,.28)',.6],[.12,.82+Math.cos(t*.04)*.04,'rgba(255,138,61,.18)',.5],[.5+Math.cos(t*.03)*.1,.55,'rgba(90,209,255,.1)',.7]].forEach(([x,y,c,s])=>{const g=cx.createRadialGradient(W*x,H*y,0,W*x,H*y,W*s);g.addColorStop(0,c);g.addColorStop(1,'rgba(0,0,0,0)');cx.fillStyle=g;cx.fillRect(0,0,W,H)});
+  SL.forEach((l,k)=>{const sp=[.05,.12,.25][k];l.forEach(s=>{s.x-=sp;if(s.x<0)s.x=W;cx.fillStyle=`rgba(230,220,255,${.35+.65*Math.abs(Math.sin(t*(.6+k*.3)+s.t))})`;cx.beginPath();cx.arc(s.x,s.y,s.r,0,7);cx.fill()})});
+  if(!shoot&&Math.random()<.006)shoot={x:Math.random()*W,y:Math.random()*H*.4,vx:-9-Math.random()*5,vy:4+Math.random()*3,l:0};
+  if(shoot){shoot.l++;shoot.x+=shoot.vx;shoot.y+=shoot.vy;const g=cx.createLinearGradient(shoot.x,shoot.y,shoot.x-shoot.vx*8,shoot.y-shoot.vy*8);g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(255,255,255,0)');cx.strokeStyle=g;cx.lineWidth=2;cx.beginPath();cx.moveTo(shoot.x,shoot.y);cx.lineTo(shoot.x-shoot.vx*8,shoot.y-shoot.vy*8);cx.stroke();if(shoot.l>60)shoot=null}
+  const R=Math.min(W*.42,115*stats().radar);$('radar').style.width=$('radar').style.height=R*2+'px';$('radar').style.margin=(-R)+'px';let nb=0;
+  OP.forEach(o=>{let[x,y]=pos(o,t);const d=Math.hypot(x,y);o.pk=Math.min(1,Math.max(0,(o.pk||0)+(o.pull?.03:-.03)));if(o.pk>0&&d>R*.7){const k=1-o.pk*(1-R*.7/d);x*=k;y*=k}
+    o.el.style.left=(W/2+x)+'px';o.el.style.top=(H/2+y+Math.sin(t*1.2+o.ph)*4)+'px';const near=Math.hypot(x,y)<R+o.size*.35;
+    if(near&&o.wasNear===false)ping(o,W/2+x,H/2+y);if(near!==o.wasNear){o.el.classList.toggle('nb',near);let ex=o.el.querySelector('.excl');if(near&&!ex){ex=document.createElement('span');ex.className='excl';ex.textContent='!';o.el.appendChild(ex);G.from(ex,{scale:0,duration:.5,ease:'back.out(3)'});G.to(ex,{y:-4,duration:.5,repeat:-1,yoyo:true,ease:'sine.inOut'})}if(!near&&ex)ex.remove()}
+    o.wasNear=near;o.el.querySelector('.tag').textContent=near?`${o.n} · ${tleft(o,1)}`:o.n;if(near)nb++});
+  $('spCount').textContent=T(`${nb} in range`,`Рядом: ${nb}`);requestAnimationFrame(frame)}
+function closeSheet(){$('sh').classList.remove('open');if(zoomed){zoomed=false;G.to('#layer',{scale:1,x:0,y:0,duration:.6,ease:'power3.inOut'})}OP.forEach(o=>{if(o.pull)setTimeout(()=>{o.pull=0},2500)})}
+/* ---- encounters: limits, market rate ---- */
+function wave(){if(cur.waved===S.day){toast(T(`You already greeted ${cur.n} today`,`Сегодня ты уже здоровался с ${cur.n}`));return}if(S.res.leaf<1){toast(T('You have no leaves to gift','Нет листьев для подарка'));return}cur.waved=S.day;
+  const ch=document.querySelector('#shIn .enc .ch'),c=rc(ch);for(let i=0;i<6;i++)setTimeout(()=>burst(c.x,c.y-40,{n:2,type:'img',img:IC[0],size:10,speed:3,g:-.06,life:60}),i*120);
+  const h=document.createElement('img');h.src=IC[13];h.alt='';h.style.cssText='position:fixed;z-index:88;width:70px;pointer-events:none';document.body.appendChild(h);G.set(h,{left:c.x-35,top:c.y-110});G.timeline({onComplete:()=>h.remove()}).from(h,{scale:0,duration:.3,ease:'back.out(3)'}).to(h,{rotation:22,duration:.12,repeat:5,yoyo:true,transformOrigin:'60% 90%'}).to(h,{opacity:0,y:-30,duration:.3});
+  const gift=Math.min(20,S.res.leaf);S.res.leaf-=gift;const back=['fabric','gear','treat'][Math.random()*3|0];S.parts[back]+=1;S.xp+=60;drawTop();saveState(true);
+  $('pane').innerHTML=`<div class="fair">${T(`You sent ${gift} leaves. ${cur.who} sent back 1 ${ONE[back]}.`,`Ты подарил ${gift} ${plr(gift,['лист','листа','листьев'])}. ${cur.who} прислал в ответ: ${ONE[back]}.`)}</div>`;logAdd('wave',T(`You waved and sent ${gift} leaves`,`Ты помахал и подарил ${gift} ${plr(gift,['лист','листа','листьев'])}`));SFX.pop();toast(T(`Gift sent to ${cur.n}`,`Подарок отправлен: ${cur.n}`))}
+function trade(){const R=BE[3](BLD[3].lv).rate;give=R*5;const rk=cur.res;get=Math.floor(give/R)*2;
+  $('pane').innerHTML=`<div class="trow"><div class="tside" id="tsL"><small>${T('You give','Отдаёшь')}</small><img class="ii" src="${IC[0]}" alt=""><b id="tg"></b><div class="step"><button data-d="-1" aria-label="Less">${svg('minus',16)}</button><button data-d="1" aria-label="More">${svg('plus',16)}</button></div></div><div class="swap" id="swp">${svg('swap',20)}</div><div class="tside" id="tsR"><small>${T('You get','Получаешь')}</small><img class="ii" src="${RIMG[rk]}" alt=""><b id="tr"></b><div class="step"><span class="bg">${T('+1 bonus ','+1 бонус: ')+ONE[cur.ret]}</span></div></div></div><div class="fair">${T(`Your market trades ${R} leaves for 2 goods. Upgrade the market for a better rate.`,`Твой рынок меняет ${R} ${plr(R,['лист','листа','листьев'])} на 2 товара. Улучши рынок — курс станет выгоднее.`)}</div><button class="claim sm" id="tGo" style="margin-top:12px">${T('Trade','Обменять')}</button>`;
+  const upd=()=>{$('tg').textContent=T(`${give} leaves`,`${give} ${plr(give,['лист','листа','листьев'])}`);$('tr').textContent=qty(get,rk)};upd();
+  G.from('#pane .tside',{y:30,opacity:0,stagger:.08,duration:.4,ease:'back.out(2)'});G.from('#swp',{rotation:-360,scale:0,duration:.6,ease:'back.out(2)'});
+  $('pane').querySelectorAll('.step button[data-d]').forEach(b=>b.onclick=()=>{give=Math.max(R,Math.min(Math.max(R,S.res.leaf-S.res.leaf%R),give+R*b.dataset.d));get=Math.floor(give/R)*2;upd();bump($('tg'),1.2);bump($('tr'),1.2)});
+  $('tGo').onclick=()=>{if(S.res.leaf<give){toast(T('Not enough leaves','Не хватает листьев'));SFX.deny();shake($('tsL'),8,.3);return}if(!lock('trade',2500))return;$('tGo').disabled=true;const L=rc($('tsL')),Rr=rc($('tsR'));G.to('#swp',{rotation:'+=540',duration:1,ease:'power2.inOut'});S.res.leaf-=give;
+    const fl=(src,a,b,n,cb)=>{for(let i=0;i<n;i++){const d=document.createElement('img');d.src=src;d.alt='';d.style.cssText='position:fixed;z-index:88;width:34px;pointer-events:none';document.body.appendChild(d);const o={t:0};G.to(o,{t:1,duration:.7,delay:i*.07,ease:'power1.inOut',onUpdate:()=>{G.set(d,{left:a.x-17+(b.x-a.x)*o.t,top:a.y-17+(b.y-a.y)*o.t-Math.sin(o.t*Math.PI)*70})},onComplete:()=>{d.remove();SFX.coin();if(i===n-1&&cb)cb()}})}};
+    const g2=give,gt=get,who=cur;fl(IC[0],L,Rr,5);setTimeout(()=>fl(RIMG[rk],Rr,L,5,()=>{burst(L.x,L.y,{n:20,type:'star',size:6});if(rk==='crystal')S.cry+=gt;else S.res[rk]=(S.res[rk]||0)+gt;if(who.ret==='core')S.cores++;else S.parts[who.ret]++;S.xp+=80;drawTop();saveState(true);logAdd('swap',T(`Traded ${g2} leaves for ${gt} ${RNAME[rk].toLowerCase()}`,`Обмен: ${g2} ${plr(g2,['лист','листа','листьев'])} на ${qty(gt,rk)}`));toast(T(`+${gt} ${RNAME[rk].toLowerCase()} and +1 ${ONE[who.ret]}`,`${qty(gt,rk)} и +1 ${ONE[who.ret]}`));setTimeout(closeSheet,500)}),500)}}
+function raid(){if(S.allies.includes(cur.n)){toast(T("You can't raid an ally",'На союзника нападать нельзя'));return}if(cur.raided===S.day){toast(T(`${cur.n} is still rebuilding. Raid again tomorrow`,`${cur.n} ещё восстанавливается. Набег можно завтра`));return}if(!lock('raid',3000))return;cur.raided=S.day;const o=cur;$('sh').classList.remove('open');battle(o)}
+/* ---- battle with real HP ---- */
+async function battle(o){try{TG&&TG.enableClosingConfirmation&&TG.enableClosingConfirmation()}catch(e){}const B=$('btl');B.classList.add('on');$('bi').style.display='block';$('arena').style.display='none';$('res2').style.display='none';
+  $('biB').src=o.ch;$('biNB').textContent=o.who.toUpperCase();$('fBi').src=o.ch;$('hnB').textContent=o.who.toUpperCase();$('arPB').src=o.pl;SFX.whoosh();
+  const tl=G.timeline();tl.fromTo('#bi .l',{xPercent:-100},{xPercent:0,duration:.35,ease:'power3.out'}).fromTo('#bi .r',{xPercent:100},{xPercent:0,duration:.35,ease:'power3.out'},'<').fromTo('#bi .stripe',{opacity:0},{opacity:.9,duration:.2})
+    .fromTo('#biA',{x:-400},{x:0,duration:.45,ease:'back.out(1.4)'},'-=.1').fromTo('#biB',{x:400},{x:0,duration:.45,ease:'back.out(1.4)'},'<').fromTo('#bi .nm',{opacity:0,y:20},{opacity:1,y:0,duration:.3},'-=.2')
+    .fromTo('#biVS',{scale:5,opacity:0,rotation:-20},{scale:1,opacity:1,rotation:0,duration:.35,ease:'back.out(2)',onComplete:()=>{SFX.slam();HAP('heavy');shake(B,22,.5);const c=rc($('biVS'));burst(c.x,c.y,{n:40,type:'star',speed:12,size:8})}}).to({},{duration:1.1});
+  await tl.then();G.to('#bi',{opacity:0,duration:.3,onComplete:()=>{$('bi').style.display='none';G.set('#bi',{opacity:1})}});$('arena').style.display='block';G.from('#arena',{opacity:0,duration:.3});
+  const st=stats(),mA=st.hp,mB=80+o.str*4;let hA=mA,hB=mB,skip=false;$('bSkip').style.display='flex';$('bSkip').onclick=()=>{skip=true};BT={mA,mB};setHP('A',hA,mA,true);setHP('B',hB,mB,true);G.set(['#fA','#fB'],{clearProps:'all'});
+  G.from('#fA',{x:-300,duration:.5,ease:'back.out(1.5)'});G.from('#fB',{x:300,duration:.5,ease:'back.out(1.5)'});G.from('.hpw',{y:-60,duration:.4,ease:'back.out(2)'});
+  const idA=G.to('#fA img',{scaleY:1.03,y:-4,duration:.8,repeat:-1,yoyo:true,ease:'sine.inOut'}),idB=G.to('#fB img',{scaleY:1.03,y:-4,duration:.9,repeat:-1,yoyo:true,ease:'sine.inOut'});
+  await wait(600);let turn=0,mine=0,guard=0;
+  while(hA>0&&hB>0&&guard++<200){const me=turn%2===0;turn++;let crit,dmg,miss=false,special=false;
+    if(me){mine++;special=mine%st.rocket===0;crit=Math.random()*100<st.crit;dmg=Math.round((8+st.pw*.55+Math.random()*6)*(crit?1.7:1)*(special?(st.dbl?2:1.4):1))}
+    else{crit=Math.random()<.2;miss=Math.random()*100<st.dodge;dmg=miss?0:Math.max(4,Math.round((6+o.str*.55+Math.random()*6-st.sh*.25)*(crit?1.7*(1-st.critRed/100):1)))}
+    if(skip){if(me)hB=Math.max(0,hB-dmg);else hA=Math.max(0,hA-dmg);continue}
+    await attack(me?'A':'B',me?'B':'A',dmg,crit,me?'blue':'red',special,miss);if(me)hB=Math.max(0,hB-dmg);else hA=Math.max(0,hA-dmg);setHP('A',hA,mA);setHP('B',hB,mB);await wait(330)}
+  setHP('A',hA,mA);setHP('B',hB,mB);idA.kill();idB.kill();const win=hB<=0;G.to(win?'#fB':'#fA',{rotation:win?20:-20,y:40,opacity:.35,duration:.6,ease:'power2.in'});await wait(700);result(o,win,Math.round(hA/mA*100))}
+let BT={mA:100,mB:100};
+function setHP(k,v,m,now){m=m||(k==='A'?BT.mA:BT.mB);const p=Math.max(0,v)/m*100;$('hv'+k).style.width=p+'%';if(now)G.set('#gh'+k,{width:p+'%'});else G.to('#gh'+k,{width:p+'%',duration:.6,delay:.35,ease:'power2.out'});const n=$('hn'+k+'n');if(n)n.textContent=`${fmt(Math.max(0,v))} / ${fmt(m)}`}
+function result(o,win,hA){$('bGo').disabled=false;resultBase(o,win,hA);const oc=$('bGo').onclick;$('bGo').onclick=()=>{if($('bGo').disabled)return;$('bGo').disabled=true;oc();saveState(true)}}
+/* ---- rewards: legendary pod, guards ---- */
+const _claim=$('claimR').onclick;$('claimR').onclick=()=>{if(S.claimed||!lock('claim',2000))return;const day=((S.day-1)%16)+1;if(day===16){S.claimed=true;drawDays();S.pods++;drawQuick();saveState(true);openPod(3);return}_claim();setTimeout(()=>saveState(true),2500)};
+/* ---- skip a day: stance matters ---- */
+$('skipDay').onclick=()=>{if(!lock('skip',1500)||anyOv())return;S.day++;S.claimed=false;const st=S.stance;const g={coin:2600+S.day*350,fabric:3,gear:3,treat:2,core:S.day%3===0?1:0,crystal:20,fuel:1};
+  const ev=[];if(st==='friendly'){g.treat+=2;g.coin-=600;ev.push([OP[5],'wave',T('Left you 2 treats as a gift','Оставил 2 лакомства в подарок')],[OP[0],'wave',T('Visited and left 6 ice','Заглянула и оставила 6 льда')]);S.res.ice+=6}
+  if(st==='trade'){ev.push([OP[1],'swap',T('Auto-traded 20 leaves for 8 pearls','Сам обменял 20 листьев на 8 жемчужин')],[OP[0],'swap',T('Traded 6 ice for 3 fabric','Обменяла 6 льда на 3 ткани')]);S.res.pearl+=8;g.fabric+=3}
+  if(st==='guard'){g.coin+=400;ev.push([OP[2],'shield',T('Attacked you. Your shield held','Напал на тебя. Щит выдержал')],[OP[4],'shield',T('Was turned away by your shields','Не смог пробиться через щиты')])}
+  else ev.push([OP[2],Math.random()<.5?'shield':'sword',T('Attacked you. Your shield held','Напал на тебя. Щит выдержал')]);
+  S.coins+=g.coin;S.parts.fabric+=g.fabric;S.parts.gear+=g.gear;S.parts.treat+=g.treat;S.cores+=g.core;S.cry+=g.crystal;S.fuel+=g.fuel;S.res.leaf+=60;S.pods++;S.cometAt=0;
+  LOG.forEach(l=>{if(l.t==='just now')l.t='yesterday'});ev.forEach(e=>LOG.unshift({o:e[0],ty:e[1],txt:e[2],t:'last night'}));
+  const lbl={coin:RNAME.coin,fabric:RNAME.fabric,gear:RNAME.gear,treat:RNAME.treat,core:RNAME.core,crystal:RNAME.crystal,fuel:T('Fuel','Топливо')};
+  $('sumH').textContent=T(`Day ${S.day}`,`День ${S.day}`);$('sumG').innerHTML=Object.entries(g).filter(([k,v])=>v).map(([k,v])=>`<div><img class="ii" src="${k==='fuel'?IC[10]:RIMG[k]}" alt="">+${fmt(v)}<small>${lbl[k]}</small></div>`).join('')+`<div><img class="ii" src="${IC[14]}" alt="">+1<small>${T('Star pod','Звёздная капсула')}</small></div>`;
+  $('sumL').innerHTML=ev.map(e=>`<b style="color:var(--tx);font-weight:600">${e[0].n}</b> · ${e[2]}`).join('<br>');const o=$('sum');o.classList.add('on');SFX.lvl();$('sumGo').disabled=false;G.fromTo('.sumc',{scale:.6,opacity:0},{scale:1,opacity:1,duration:.5,ease:'back.out(1.8)'});G.from('#sumG div',{scale:0,stagger:.06,duration:.4,ease:'back.out(2.5)',delay:.3});
+  saveState(true);$('sumGo').onclick=()=>{if($('sumGo').disabled)return;$('sumGo').disabled=true;G.to(o,{opacity:0,duration:.25,onComplete:()=>{o.classList.remove('on');G.set(o,{opacity:1});S.xp+=2200;drawTop();drawQuick();drawDays();drawBuilds();openPod()}})}};
+/* ---- overlay buttons: one press only ---- */
+['lvGo','tuGo'].forEach(id=>{const el=$(id);el.addEventListener('click',e=>{if(el.dataset.used==='1'){e.stopImmediatePropagation();return}el.dataset.used='1';setTimeout(()=>el.dataset.used='',1200)},true)});
 
 /* ---- boot ---- */
 $('face').style.backgroundImage=`url(${HERO})`;$('lgPl').src=P[1];
