@@ -1,3 +1,4 @@
+import asyncio
 import os, secrets, logging, pathlib, hmac, hashlib, json, sqlite3, time
 from urllib.parse import parse_qsl
 import httpx
@@ -49,6 +50,7 @@ def db():
         if col not in cols:
             c.execute(f"ALTER TABLE saves ADD COLUMN {col} {typ}")
     c.execute("CREATE TABLE IF NOT EXISTS grants (id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, sku TEXT, charge TEXT UNIQUE, claimed INTEGER DEFAULT 0, ts INTEGER)")
+    c.execute("CREATE TABLE IF NOT EXISTS notified (uid INTEGER, kind TEXT, target INTEGER, sent INTEGER, PRIMARY KEY(uid,kind))")
     c.execute("CREATE TABLE IF NOT EXISTS refs (friend INTEGER PRIMARY KEY, referrer INTEGER, name TEXT, claimed INTEGER DEFAULT 0, ts INTEGER)")
     return c
 
@@ -142,7 +144,7 @@ async def api_top(request: Request):
     return {"list": [{"name": n or "Player", "points": p, "power": pw, "me": uid == int(u["id"])} for uid, n, p, pw in rows], "rank": rank}
 
 
-SKUS = {"caps10": ("10 star pods", 50), "caps50": ("50 star pods", 200), "acc20": ("20 accelerators", 40), "vip30": ("VIP for 30 days", 300)}
+SKUS = {"caps10": ("10 star pods", 50), "caps50": ("50 star pods", 200), "acc20": ("20 accelerators", 40), "vip30": ("VIP for 30 days", 300), "pass": ("Space Pass premium", 250)}
 
 
 @app.post("/api/invoice")
@@ -269,8 +271,55 @@ async def webhook(secret: str, request: Request):
     return {"ok": True}
 
 
+NOTE = {
+    "storage": ("Your planet storage is full — the mine has stopped. Collect your stardust!", "Хранилище планеты заполнено — шахта простаивает. Собери пыль!"),
+    "patrol": ("Your captain is back from an 8-hour patrol with full loot.", "Капитан вернулся из патруля с полной добычей. Забери награды!"),
+    "capup": ("Your star pod upgrade is done — better drop chances!", "Капсула улучшена — шансы на редкие вещи выросли!"),
+    "free": ("Free star pods are waiting in the shop.", "В магазине ждут бесплатные капсулы."),
+}
+
+
+async def notifier():
+    await asyncio.sleep(20)
+    while True:
+        try:
+            now = int(time.time() * 1000)
+            with db() as c:
+                rows = c.execute("SELECT uid, meta, updated FROM saves WHERE updated > ?", (int(time.time()) - 14 * 86400,)).fetchall()
+            for uid, meta, updated in rows:
+                try:
+                    m = json.loads(meta or "{}")
+                except Exception:
+                    continue
+                if m.get("notif") is False or time.time() - updated < 600:
+                    continue
+                hour = ((now // 60000 + int(m.get("tz") or 0)) // 60) % 24
+                if hour < 9 or hour >= 22:
+                    continue
+                with db() as c:
+                    sent24 = c.execute("SELECT COUNT(*) FROM notified WHERE uid=? AND sent>?", (uid, int(time.time()) - 86400)).fetchone()[0]
+                    if sent24 >= 3:
+                        continue
+                    for kind, target in (m.get("n") or {}).items():
+                        target = int(target or 0)
+                        if kind not in NOTE or not target or target > now or target < now - 6 * 3600 * 1000:
+                            continue
+                        row = c.execute("SELECT target FROM notified WHERE uid=? AND kind=?", (uid, kind)).fetchone()
+                        if row and row[0] == target:
+                            continue
+                        ru = m.get("lang") == "ru"
+                        await tg("sendMessage", chat_id=uid, text=NOTE[kind][1 if ru else 0],
+                                 reply_markup={"inline_keyboard": [[{"text": "Играть" if ru else "Play", "web_app": {"url": play_url()}}]]})
+                        c.execute("INSERT INTO notified(uid,kind,target,sent) VALUES(?,?,?,?) ON CONFLICT(uid,kind) DO UPDATE SET target=excluded.target, sent=excluded.sent", (uid, kind, target, int(time.time())))
+                        break
+        except Exception as e:
+            log.exception("notifier: %s", e)
+        await asyncio.sleep(120)
+
+
 @app.on_event("startup")
 async def setup_bot():
+    asyncio.create_task(notifier())
     if not BOT_TOKEN or not BASE_URL:
         log.warning("BOT_TOKEN or BASE_URL missing, bot setup skipped")
         return
