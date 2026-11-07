@@ -198,7 +198,12 @@ async def healthz():
             n = c.execute("SELECT COUNT(*) FROM saves").fetchone()[0]
     except Exception:
         n = -1
-    return JSONResponse({"ok": True, "version": VERSION, "saves": n}, headers=NOCACHE)
+    try:
+        with db() as c:
+            dv = c.execute("SELECT COUNT(*), COALESCE(SUM(claimed),0) FROM grants WHERE sku='dev_max'").fetchone()
+    except Exception:
+        dv = (0, 0)
+    return JSONResponse({"ok": True, "version": VERSION, "saves": n, "dev_grants": dv[0], "dev_claimed": dv[1]}, headers=NOCACHE)
 
 
 def play_url():
