@@ -799,7 +799,7 @@ function drawPorters(){const box=$('lvls');if(curV!=='base'||!box.firstChild)ret
   const now=performance.now();PT.forEach((p,i)=>{const row=box.querySelector(`.lv[data-l="${p.ph==='idle'?p.at:p.to}"]`),row0=box.querySelector(`.lv[data-l="${p.at}"]`);if(!row||!row0)return;const y0=row0.offsetTop+ROWH/2-14,y1=row.offsetTop+ROWH/2-14,k=p.ph==='idle'?1:clamp((now-p.t0)/(p.t1-p.t0),0,1);const el=layer.children[i];el.style.left='50%';el.style.marginLeft=(-9+(i%2?10:-10))+'px';el.style.top=(y0+(y1-y0)*k)+'px';el.style.transform=y1<y0?'scaleX(-1)':'none'})}
 function drawGoT(){const s=curStep();const b=$('goT');if(false){b.style.display='flex';b.onclick=()=>{const el=$('lvls').querySelector(`.room[data-k="${s.slot}"]`);if(el)el.scrollIntoView({behavior:'smooth',block:'center'})}}else b.style.display='none'}
 function tapRoom(k,el){SFX.tap();const r=room(k);if(!r){if(inZone(k))openBuild(k);return}const d=ROOM[r.t];const a=slotAction(k);
-  if(a&&!(d.res&&r.buf>=1&&a.act!=='inc'&&a.act!=='fix'&&a.act!=='repair')){doAct(k);return}
+  if(a){doAct(k);return}
   if(d.res&&r.buf>=bufCap(k)*.25&&inZone(k)){collect(k,el);drawLive();return}
   openRoom(k)}
 function fxRoom(k,txt){setTimeout(()=>{const el=$('lvls').querySelector(`.room[data-k="${k}"]`);if(!el)return;el.classList.remove('lvup');void el.offsetWidth;el.classList.add('lvup');const c=rc(el);popText(c.x,c.y,txt,'#F2C46A')},120)}
@@ -818,14 +818,14 @@ function openRoom(k){const r=room(k),d=ROOM[r.t],lv=lvOf(k),zone=inZone(k);
   let extra='';if(r.t==='work')extra=craftHtml();
   openSheet(`<div class="sh"><h3>${d.n}</h3><div class="sub">Уровень ${lv} · ${SECT[secOf(lv)].n}</div></div><div class="shimg" style="background-image:url(${AS('room_'+d.img)})"></div>
    <div class="srows">${d.res?`<div class="srow"><span>Выработка</span><b>${v.toFixed(1)} ${RES[d.res].n.toLowerCase()}/мин${mx?'':` <em>→ ${(v/(1+.35*(r.lv-1))*(1+.35*r.lv)).toFixed(1)}</em>`}</b></div><div class="srow"><span>Готово к сбору</span><b>${Math.floor(r.buf)} / ${Math.floor(bufCap(k))}</b></div><div class="srow"><span>Важный навык</span><b>${STAT[d.st]}</b></div>`:''}${r.t==='live'?`<div class="srow"><span>Мест для жителей</span><b>${4*r.lv}${mx?'':` <em>→ ${4*(r.lv+1)}</em>`}</b></div>`:''}${r.t==='store'?`<div class="srow"><span>Вместимость склада</span><b>+${300*r.lv}${mx?'':` <em>→ +${300*(r.lv+1)}</em>`}</b></div>`:''}<div class="srow"><span>Уровень комнаты</span><b>${r.lv} / 10</b></div></div>
-   ${r.broken?`<button class="btn rd w100" id="rFix" style="margin-top:12px">${ic('wrench',18)}Починить</button>`:''}
+   ${slotAction(k)&&!r.broken?`<button class="btn bl w100" id="rAct2" style="margin-top:12px">${({tune:'Настроить частоту',repair:'Ремонт',search:'Обыскать',cut:'Отключить питание',give:'Передать энергию',inc:'Устранить аварию',fix:'Починить'})[slotAction(k).act]||'Действовать'}</button>`:''}${r.broken?`<button class="btn rd w100" id="rFix" style="margin-top:12px">${ic('wrench',18)}Починить</button>`:''}
    ${d.res?`<div class="ttl" style="margin-top:14px;font-size:15px">Работники · ${r.w.length}/2</div><div class="list" id="rW">${r.w.map(id=>{const p=S.ppl.find(x=>x.id===id);return p?pplRow(p,d.st,'rm'):''}).join('')}${r.w.length<2?`<button class="btn gy w100" id="rAdd">+ Назначить жителя</button>`:''}</div>`:''}
    ${d.res&&r.buf>=1&&zone?`<button class="btn gy w100" id="rCol" style="margin-top:12px"><img src="${RES[d.res].img}" alt="">Собрать ${Math.floor(r.buf)}</button>`:''}
    ${extra}
    ${mx?'<div class="sub" style="text-align:center;margin-top:14px">Максимальный уровень</div>':zone?`${costHtml(c)}<button class="btn w100" id="rUp" style="margin-top:10px"${canUp?'':' disabled'}>Улучшить до ${r.lv+1}</button><div class="why">${canUp?'':'Не хватает ресурсов'}</div>`:'<div class="why">Сектор не под твоим влиянием</div>'}`,true);
   if($('rUp'))$('rUp').onclick=()=>{if(!canPay(c)||!lock('up'))return;pay(c);r.lv++;dayProg('up');SFX.ok();HAP('ok');checkStep();saveState(true);drawAll();openRoom(k);fxRoom(k,'УРОВЕНЬ '+r.lv)};
   if($('rCol'))$('rCol').onclick=()=>{collect(k,$('rCol'));openRoom(k);drawAll()};
-  if($('rFix'))$('rFix').onclick=()=>doAct(k);
+  if($('rFix'))$('rFix').onclick=()=>doAct(k);if($('rAct2'))$('rAct2').onclick=()=>doAct(k);
   if($('rAdd'))$('rAdd').onclick=()=>pickWorker(k);
   document.querySelectorAll('#rW [data-rm]').forEach(b=>b.onclick=e=>{e.stopPropagation();const p=S.ppl.find(x=>x.id===b.dataset.rm);assign(p,null);saveState(true);drawAll();openRoom(k)});
   bindCraft()}
