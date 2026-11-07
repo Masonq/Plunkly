@@ -53,6 +53,11 @@ def db():
     gcols = {r[1] for r in c.execute("PRAGMA table_info(grants)")}
     if "qty" not in gcols:
         c.execute("ALTER TABLE grants ADD COLUMN qty INTEGER DEFAULT 1")
+    if "data" not in gcols:
+        c.execute("ALTER TABLE grants ADD COLUMN data TEXT")
+    c.execute("CREATE TABLE IF NOT EXISTS wboss (day TEXT PRIMARY KEY, hp INTEGER, max INTEGER)")
+    c.execute("CREATE TABLE IF NOT EXISTS wdmg (day TEXT, uid INTEGER, name TEXT, dmg INTEGER DEFAULT 0, hits INTEGER DEFAULT 0, claimed INTEGER DEFAULT 0, PRIMARY KEY(day, uid))")
+    c.execute("CREATE TABLE IF NOT EXISTS dau (day TEXT, uid INTEGER, PRIMARY KEY(day, uid))")
     c.execute("CREATE TABLE IF NOT EXISTS notified (uid INTEGER, kind TEXT, target INTEGER, sent INTEGER, PRIMARY KEY(uid,kind))")
     c.execute("CREATE TABLE IF NOT EXISTS guilds (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, emblem INTEGER, owner INTEGER, created INTEGER, week INTEGER DEFAULT 0, boss_hp INTEGER DEFAULT 0, boss_max INTEGER DEFAULT 0, killed INTEGER DEFAULT 0)")
     c.execute("CREATE TABLE IF NOT EXISTS gmembers (uid INTEGER PRIMARY KEY, gid INTEGER, name TEXT, joined INTEGER, week INTEGER DEFAULT 0, dmg INTEGER DEFAULT 0, hits_day TEXT DEFAULT '', hits INTEGER DEFAULT 0, claimed INTEGER DEFAULT 0)")
@@ -106,6 +111,7 @@ async def api_save(request: Request):
         if cur and cur[0] > ts:
             return {"ok": True, "stale": True}
         meta = body.get("meta") or {}
+        c.execute("INSERT OR IGNORE INTO dau(day,uid) VALUES(?,?)", (time.strftime("%Y-%m-%d", time.gmtime()), int(u["id"])))
         power = int(meta.get("power") or 0)
         points = int(meta.get("points") or 1000)
         c.execute("INSERT INTO saves(uid,name,state,ts,updated,power,points,meta) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(uid) DO UPDATE SET name=excluded.name,state=excluded.state,ts=excluded.ts,updated=excluded.updated,power=excluded.power,points=excluded.points,meta=excluded.meta",
@@ -132,10 +138,11 @@ async def api_opp(request: Request):
     out = []
     for uid, name, power, points, meta in rows[:3]:
         try:
-            st = (json.loads(meta or "{}") or {}).get("st") or {}
+            mj = json.loads(meta or "{}") or {}
         except Exception:
-            st = {}
-        out.append({"uid": uid % 1000, "name": name or "Player", "power": power, "points": points, "st": st})
+            mj = {}
+        st = mj.get("st") or {}
+        out.append({"uid": uid % 1000, "name": name or "Player", "power": power, "points": points, "st": st, "title": (mj.get("title") or "")[:40]})
     return {"list": out}
 
 
@@ -150,7 +157,7 @@ async def api_top(request: Request):
     return {"list": [{"name": n or "Player", "points": p, "power": pw, "me": uid == int(u["id"])} for uid, n, p, pw in rows], "rank": rank}
 
 
-SKUS = {"caps10": ("10 star pods", 50), "caps50": ("50 star pods", 200), "acc20": ("20 accelerators", 40), "vip30": ("VIP for 30 days", 300), "pass": ("Space Pass premium", 250)}
+SKUS = {"starter": ("Starter pack", 99), "deal_caps": ("Deal: 40 star pods", 25), "deal_mcaps": ("Deal: 12 module pods", 25), "deal_core": ("Deal: 25 evolution cores", 25), "deal_eggs": ("Deal: 3 pet eggs", 25), "eggs5": ("5 pet eggs", 60), "caps10": ("10 star pods", 50), "caps50": ("50 star pods", 200), "acc20": ("20 accelerators", 40), "vip30": ("VIP for 30 days", 300), "pass": ("Space Pass premium", 250)}
 
 
 @app.post("/api/invoice")
@@ -161,7 +168,7 @@ async def api_invoice(request: Request):
     if sku not in SKUS:
         raise HTTPException(status_code=400)
     title, price = SKUS[sku]
-    qty = max(1, min(1 if sku == "pass" else 20, int(body.get("qty") or 1)))
+    qty = max(1, min(1 if (sku == "pass" or sku == "starter" or sku.startswith("deal_")) else 20, int(body.get("qty") or 1)))
     label = f"{title} ×{qty}" if qty > 1 else title
     r = await tg("createInvoiceLink", title=f"Plunkly · {label}", description=label, payload=f"{u['id']}:{sku}:{qty}:{secrets.token_hex(4)}", currency="XTR", prices=[{"label": label, "amount": price * qty}])
     if not r.get("ok"):
@@ -174,8 +181,8 @@ async def api_grants(request: Request):
     body = await request.json()
     u = auth(body)
     with db() as c:
-        rows = c.execute("SELECT id,sku,COALESCE(qty,1) FROM grants WHERE uid=? AND claimed=0", (int(u["id"]),)).fetchall()
-    return {"list": [{"id": i, "sku": s, "qty": q} for i, s, q in rows]}
+        rows = c.execute("SELECT id,sku,COALESCE(qty,1),data FROM grants WHERE uid=? AND claimed=0", (int(u["id"]),)).fetchall()
+    return {"list": [{"id": i, "sku": s, "qty": q, "data": d} for i, s, q, d in rows]}
 
 
 @app.post("/api/grants/ack")
@@ -373,6 +380,158 @@ async def ev_top(request: Request):
     out.sort(key=lambda x: -x["tok"])
     rank = next((k + 1 for k, x in enumerate(out) if x["me"]), 0)
     return {"list": out[:30], "rank": rank}
+
+
+# ---------------- world boss ----------------
+def wday(off=0):
+    return time.strftime("%Y-%m-%d", time.gmtime(time.time() + off * 86400))
+
+def wboss_row(c):
+    d = wday()
+    r = c.execute("SELECT hp,max FROM wboss WHERE day=?", (d,)).fetchone()
+    if not r:
+        pw = c.execute("SELECT COALESCE(SUM(power),0) FROM saves WHERE updated>?", (int(time.time()) - 3 * 86400,)).fetchone()[0] or 0
+        mx = max(5_000_000, int(pw * 300))
+        c.execute("INSERT OR IGNORE INTO wboss(day,hp,max) VALUES(?,?,?)", (d, mx, mx))
+        r = (mx, mx)
+    return d, r[0], r[1]
+
+def wview(c, uid):
+    d, hp, mx = wboss_row(c)
+    top = c.execute("SELECT uid,name,dmg FROM wdmg WHERE day=? ORDER BY dmg DESC LIMIT 20", (d,)).fetchall()
+    me = c.execute("SELECT dmg,hits FROM wdmg WHERE day=? AND uid=?", (d, uid)).fetchone()
+    rank = (c.execute("SELECT COUNT(*) FROM wdmg WHERE day=? AND dmg>?", (d, me[0])).fetchone()[0] + 1) if me else 0
+    n = c.execute("SELECT COUNT(*) FROM wdmg WHERE day=?", (d,)).fetchone()[0]
+    y = wday(-1)
+    ym = c.execute("SELECT dmg,claimed FROM wdmg WHERE day=? AND uid=?", (y, uid)).fetchone()
+    yrank = (c.execute("SELECT COUNT(*) FROM wdmg WHERE day=? AND dmg>?", (y, ym[0])).fetchone()[0] + 1) if ym else 0
+    ykilled = (c.execute("SELECT hp FROM wboss WHERE day=?", (y,)).fetchone() or [1])[0] == 0
+    return {"day": d, "hp": hp, "max": mx, "players": n, "top": [{"name": nm or "Player", "dmg": dm, "me": u == uid} for u, nm, dm in top],
+            "my": {"dmg": me[0] if me else 0, "hits_left": 3 - (me[1] if me else 0), "rank": rank},
+            "prev": {"rank": yrank, "dmg": ym[0] if ym else 0, "claimable": bool(ym) and not ym[1], "killed": ykilled}, "ends": int(time.time()) // 86400 * 86400 + 86400}
+
+@app.post("/api/wboss")
+async def wb_get(request: Request):
+    body = await request.json(); u = auth(body)
+    with db() as c:
+        return wview(c, int(u["id"]))
+
+@app.post("/api/wboss/hit")
+async def wb_hit(request: Request):
+    import random
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    with db() as c:
+        d, hp, mx = wboss_row(c)
+        me = c.execute("SELECT hits FROM wdmg WHERE day=? AND uid=?", (d, uid)).fetchone()
+        if me and me[0] >= 3:
+            return {"error": "limit", **wview(c, uid)}
+        pw = c.execute("SELECT COALESCE(power,0) FROM saves WHERE uid=?", (uid,)).fetchone()
+        dmg = int(max(100, (pw[0] if pw else 0)) * random.uniform(20, 30))
+        c.execute("INSERT INTO wdmg(day,uid,name,dmg,hits) VALUES(?,?,?,?,1) ON CONFLICT(day,uid) DO UPDATE SET dmg=dmg+excluded.dmg, hits=hits+1, name=excluded.name", (d, uid, (u.get("first_name") or "")[:32], dmg))
+        c.execute("UPDATE wboss SET hp=MAX(0,hp-?) WHERE day=?", (dmg, d))
+        v = wview(c, uid); v["dmg"] = dmg
+        return v
+
+@app.post("/api/wboss/claim")
+async def wb_claim(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    with db() as c:
+        y = wday(-1)
+        me = c.execute("SELECT dmg,claimed FROM wdmg WHERE day=? AND uid=?", (y, uid)).fetchone()
+        if not me or me[1]:
+            return {"ok": False}
+        rank = c.execute("SELECT COUNT(*) FROM wdmg WHERE day=? AND dmg>?", (y, me[0])).fetchone()[0] + 1
+        killed = (c.execute("SELECT hp FROM wboss WHERE day=?", (y,)).fetchone() or [1])[0] == 0
+        c.execute("UPDATE wdmg SET claimed=1 WHERE day=? AND uid=?", (y, uid))
+        return {"ok": True, "rank": rank, "killed": killed}
+
+# ---------------- admin ----------------
+ADMIN_IDS = {int(x) for x in os.environ.get("ADMIN_IDS", "1245509871").split(",") if x.strip().isdigit()}
+
+def admin(body):
+    u = auth(body)
+    if int(u["id"]) not in ADMIN_IDS:
+        raise HTTPException(status_code=403)
+    return u
+
+@app.post("/api/admin/stats")
+async def adm_stats(request: Request):
+    body = await request.json(); admin(body)
+    now = int(time.time())
+    with db() as c:
+        tot = c.execute("SELECT COUNT(*) FROM saves").fetchone()[0]
+        days = [time.strftime("%Y-%m-%d", time.gmtime(now - k * 86400)) for k in range(7)]
+        dau = [{"day": d, "n": c.execute("SELECT COUNT(*) FROM dau WHERE day=?", (d,)).fetchone()[0]} for d in days]
+        new = c.execute("SELECT COUNT(*) FROM saves WHERE uid IN (SELECT uid FROM dau GROUP BY uid HAVING MIN(day)=?)", (days[0],)).fetchone()[0]
+        pays = c.execute("SELECT g.sku,COALESCE(g.qty,1),g.ts,s.name FROM grants g LEFT JOIN saves s ON s.uid=g.uid WHERE g.charge IS NOT NULL AND g.charge NOT LIKE 'dev-%' AND g.charge NOT LIKE 'adm-%' ORDER BY g.ts DESC LIMIT 30").fetchall()
+        top = c.execute("SELECT uid,name,power,points FROM saves ORDER BY power DESC LIMIT 15").fetchall()
+        refs = c.execute("SELECT COUNT(*) FROM refs").fetchone()[0]
+        guilds = c.execute("SELECT COUNT(*) FROM guilds").fetchone()[0]
+    stars = 0; week = 0
+    for sku, q, ts, _ in pays:
+        p = SKUS.get(sku, ("", 0))[1] * q
+        stars += p
+        if ts and ts > now - 7 * 86400:
+            week += p
+    return {"total": tot, "dau": dau, "new_today": new, "refs": refs, "guilds": guilds, "stars_recent": stars, "stars_week": week,
+            "pays": [{"sku": s2, "qty": q, "ts": ts, "name": n} for s2, q, ts, n in pays], "top": [{"uid": i, "name": n, "power": p, "points": pt} for i, n, p, pt in top]}
+
+@app.post("/api/admin/find")
+async def adm_find(request: Request):
+    body = await request.json(); admin(body)
+    q = (body.get("q") or "").strip()
+    with db() as c:
+        if q.isdigit():
+            rows = c.execute("SELECT uid,name,power,updated FROM saves WHERE uid=?", (int(q),)).fetchall()
+        else:
+            rows = c.execute("SELECT uid,name,power,updated FROM saves WHERE name LIKE ? ORDER BY updated DESC LIMIT 20", (f"%{q}%",)).fetchall()
+    return {"list": [{"uid": i, "name": n, "power": p, "seen": up} for i, n, p, up in rows]}
+
+@app.post("/api/admin/give")
+async def adm_give(request: Request):
+    body = await request.json(); admin(body)
+    uid = int(body.get("uid") or 0); rw = body.get("rw") or {}
+    allowed = {"coin", "cry", "caps", "mcaps", "acc", "vou", "fuel", "core", "shard", "ess", "egg", "treat"}
+    rw = {k: max(0, min(10**12, int(v))) for k, v in rw.items() if k in allowed and str(v).lstrip("-").isdigit()}
+    if not uid or not rw:
+        return {"ok": False}
+    with db() as c:
+        c.execute("INSERT INTO grants(uid,sku,charge,claimed,ts,qty,data) VALUES(?,?,?,0,?,1,?)", (uid, "adm", f"adm-{uid}-{secrets.token_hex(4)}", int(time.time()), json.dumps(rw)))
+    msg = (body.get("note") or "").strip()[:300]
+    if msg:
+        await tg("sendMessage", chat_id=uid, text=msg, reply_markup={"inline_keyboard": [[{"text": "Открыть Plunkly", "web_app": {"url": play_url()}}]]})
+    return {"ok": True}
+
+BCAST = {"running": False, "sent": 0, "total": 0}
+
+async def _broadcast(text):
+    with db() as c:
+        ids = [r[0] for r in c.execute("SELECT uid FROM saves").fetchall()]
+    BCAST.update(running=True, sent=0, total=len(ids))
+    for uid in ids:
+        try:
+            await tg("sendMessage", chat_id=uid, text=text, reply_markup={"inline_keyboard": [[{"text": "Играть", "web_app": {"url": play_url()}}]]})
+            BCAST["sent"] += 1
+        except Exception:
+            pass
+        await asyncio.sleep(0.06)
+    BCAST["running"] = False
+
+@app.post("/api/admin/broadcast")
+async def adm_bcast(request: Request):
+    body = await request.json(); admin(body)
+    text = (body.get("text") or "").strip()[:1000]
+    if body.get("status"):
+        return BCAST
+    if not text or BCAST["running"]:
+        return {"ok": False, **BCAST}
+    asyncio.create_task(_broadcast(text))
+    return {"ok": True}
+
+@app.post("/api/admin/check")
+async def adm_check(request: Request):
+    body = await request.json(); u = auth(body)
+    return {"admin": int(u["id"]) in ADMIN_IDS}
 
 
 @app.get("/healthz")
