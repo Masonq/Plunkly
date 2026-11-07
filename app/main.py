@@ -50,6 +50,9 @@ def db():
         if col not in cols:
             c.execute(f"ALTER TABLE saves ADD COLUMN {col} {typ}")
     c.execute("CREATE TABLE IF NOT EXISTS grants (id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, sku TEXT, charge TEXT UNIQUE, claimed INTEGER DEFAULT 0, ts INTEGER)")
+    gcols = {r[1] for r in c.execute("PRAGMA table_info(grants)")}
+    if "qty" not in gcols:
+        c.execute("ALTER TABLE grants ADD COLUMN qty INTEGER DEFAULT 1")
     c.execute("CREATE TABLE IF NOT EXISTS notified (uid INTEGER, kind TEXT, target INTEGER, sent INTEGER, PRIMARY KEY(uid,kind))")
     c.execute("CREATE TABLE IF NOT EXISTS guilds (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, emblem INTEGER, owner INTEGER, created INTEGER, week INTEGER DEFAULT 0, boss_hp INTEGER DEFAULT 0, boss_max INTEGER DEFAULT 0, killed INTEGER DEFAULT 0)")
     c.execute("CREATE TABLE IF NOT EXISTS gmembers (uid INTEGER PRIMARY KEY, gid INTEGER, name TEXT, joined INTEGER, week INTEGER DEFAULT 0, dmg INTEGER DEFAULT 0, hits_day TEXT DEFAULT '', hits INTEGER DEFAULT 0, claimed INTEGER DEFAULT 0)")
@@ -158,7 +161,9 @@ async def api_invoice(request: Request):
     if sku not in SKUS:
         raise HTTPException(status_code=400)
     title, price = SKUS[sku]
-    r = await tg("createInvoiceLink", title=f"Plunkly · {title}", description=title, payload=f"{u['id']}:{sku}:{secrets.token_hex(4)}", currency="XTR", prices=[{"label": title, "amount": price}])
+    qty = max(1, min(1 if sku == "pass" else 20, int(body.get("qty") or 1)))
+    label = f"{title} ×{qty}" if qty > 1 else title
+    r = await tg("createInvoiceLink", title=f"Plunkly · {label}", description=label, payload=f"{u['id']}:{sku}:{qty}:{secrets.token_hex(4)}", currency="XTR", prices=[{"label": label, "amount": price * qty}])
     if not r.get("ok"):
         raise HTTPException(status_code=502)
     return {"link": r["result"]}
@@ -169,8 +174,8 @@ async def api_grants(request: Request):
     body = await request.json()
     u = auth(body)
     with db() as c:
-        rows = c.execute("SELECT id,sku FROM grants WHERE uid=? AND claimed=0", (int(u["id"]),)).fetchall()
-    return {"list": [{"id": i, "sku": s} for i, s in rows]}
+        rows = c.execute("SELECT id,sku,COALESCE(qty,1) FROM grants WHERE uid=? AND claimed=0", (int(u["id"]),)).fetchall()
+    return {"list": [{"id": i, "sku": s, "qty": q} for i, s, q in rows]}
 
 
 @app.post("/api/grants/ack")
@@ -426,9 +431,11 @@ async def webhook(secret: str, request: Request):
     sp = msg.get("successful_payment")
     if sp:
         try:
-            uid, sku = sp["invoice_payload"].split(":")[:2]
+            parts = sp["invoice_payload"].split(":")
+            uid, sku = parts[0], parts[1]
+            qty = int(parts[2]) if len(parts) > 3 and parts[2].isdigit() else 1
             with db() as c:
-                c.execute("INSERT OR IGNORE INTO grants(uid,sku,charge,claimed,ts) VALUES(?,?,?,0,?)", (int(uid), sku, sp.get("telegram_payment_charge_id"), int(time.time())))
+                c.execute("INSERT OR IGNORE INTO grants(uid,sku,charge,claimed,ts,qty) VALUES(?,?,?,0,?,?)", (int(uid), sku, sp.get("telegram_payment_charge_id"), int(time.time()), qty))
         except Exception as e:
             log.exception("payment store failed: %s", e)
         if chat:
