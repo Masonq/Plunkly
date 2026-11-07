@@ -167,9 +167,18 @@ async def api_grants(request: Request):
     u = auth(body)
     with db() as c:
         rows = c.execute("SELECT id,sku FROM grants WHERE uid=? AND claimed=0", (int(u["id"]),)).fetchall()
-        if rows:
-            c.execute("UPDATE grants SET claimed=1 WHERE uid=? AND claimed=0", (int(u["id"]),))
     return {"list": [{"id": i, "sku": s} for i, s in rows]}
+
+
+@app.post("/api/grants/ack")
+async def api_grants_ack(request: Request):
+    body = await request.json()
+    u = auth(body)
+    ids = [int(x) for x in (body.get("ids") or [])][:50]
+    if ids:
+        with db() as c:
+            c.executemany("UPDATE grants SET claimed=1 WHERE uid=? AND id=?", [(int(u["id"]), i) for i in ids])
+    return {"ok": True}
 
 
 @app.post("/api/friends")
