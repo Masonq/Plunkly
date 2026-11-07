@@ -1,0 +1,68 @@
+[14:05:52] == packages
+[14:05:52] == code
+[14:05:52] $ git -C /opt/plunkly remote set-url origin https://x-access-token:***@github.com/Masonq/Plunkly.git
+[14:05:52] $ git -C /opt/plunkly fetch origin main
+warning: redirecting to https://github.com/Masonq/Plunkly.git/
+From https://github.com/Masonq/Plunkly
+ * branch            main       -> FETCH_HEAD
+   b79cc4f..5f1dd38  main       -> origin/main
+[14:05:53] $ git -C /opt/plunkly reset --hard origin/main
+HEAD is now at 5f1dd38 Bunker 17: lock codes no longer change between attempts; daily case box code is a riddle (level of the scene + number of suspects)
+[14:05:53] version 5f1dd38
+[14:05:53] == python
+[14:05:53] $ /opt/plunkly/.venv/bin/pip install -q -r /opt/plunkly/requirements.txt
+[14:05:53] == service
+[14:05:53] $ systemctl daemon-reload
+[14:05:54] $ systemctl enable plunkly
+[14:05:54] $ systemctl restart plunkly
+[14:05:54] == nginx
+[14:05:54] $ nginx -t
+2026/11/07 17:05:54 [warn] 2049189#2049189: protocol options redefined for 0.0.0.0:443 in /etc/nginx/sites-enabled/plonk:93
+2026/11/07 17:05:54 [warn] 2049189#2049189: protocol options redefined for 0.0.0.0:443 in /etc/nginx/sites-enabled/plunkly:6
+2026/11/07 17:05:54 [warn] 2049189#2049189: protocol options redefined for 0.0.0.0:443 in /etc/nginx/sites-enabled/puskica.conf:4
+2026/11/07 17:05:54 [warn] 2049189#2049189: protocol options redefined for 0.0.0.0:443 in /etc/nginx/sites-enabled/severny-kubok:12
+2026/11/07 17:05:54 [warn] 2049189#2049189: conflicting server name "bookstats.89-208-113-147.sslip.io" on 0.0.0.0:80, ignored
+2026/11/07 17:05:54 [warn] 2049189#2049189: conflicting server name "bookstats.89-208-113-147.sslip.io" on 0.0.0.0:443, ignored
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+[14:05:54] $ systemctl reload nginx
+[14:05:54] $ systemctl reload nginx
+[14:05:58] == checks
+[14:05:58] local: {"ok":true,"version":"5f1dd38","saves":1,"dev_grants":7,"dev_claimed":7}
+[14:05:58] https: {"ok":true,"version":"5f1dd38","saves":1,"dev_grants":7,"dev_claimed":7}
+[14:05:58] index head: HTTP/2 200  cache-control: no-cache, no-store, must-revalidate 
+[14:05:58] asset: HTTP/2 404  
+[14:05:58] webhook: {"ok":true,"result":{"url":"https://plunkly.89-208-113-147.sslip.io/tg/webhook/***","has_custom_certificate":false,"pending_update_count":0,"max_connections":40,"ip_address":"89.208.113.147","allowed_updates":["message","pre_checkout_query"]}}
+[14:05:58] service: active
+[14:05:58] save api: 401 (401 expected without Telegram)
+Nov 07 17:03:44 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:03:49 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:03:51 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:00 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:00 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/grants HTTP/1.0" 200 OK
+Nov 07 17:04:05 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:10 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:15 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:20 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:25 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:30 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:04:31 impressed-jade.ptr.network uvicorn[2045725]: INFO:     87.116.135.226:0 - "POST /api/save HTTP/1.0" 200 OK
+Nov 07 17:05:54 impressed-jade.ptr.network systemd[1]: Stopping plunkly.service - Plunkly game + bot...
+Nov 07 17:05:54 impressed-jade.ptr.network uvicorn[2045725]: INFO:     Shutting down
+Nov 07 17:05:54 impressed-jade.ptr.network uvicorn[2045725]: INFO:     Waiting for application shutdown.
+Nov 07 17:05:54 impressed-jade.ptr.network uvicorn[2045725]: INFO:     Application shutdown complete.
+Nov 07 17:05:54 impressed-jade.ptr.network uvicorn[2045725]: INFO:     Finished server process [2045725]
+Nov 07 17:05:54 impressed-jade.ptr.network systemd[1]: plunkly.service: Deactivated successfully.
+Nov 07 17:05:54 impressed-jade.ptr.network systemd[1]: Stopped plunkly.service - Plunkly game + bot.
+Nov 07 17:05:54 impressed-jade.ptr.network systemd[1]: plunkly.service: Consumed 1.320s CPU time, 47.9M memory peak, 200.0K memory swap peak.
+Nov 07 17:05:54 impressed-jade.ptr.network systemd[1]: Started plunkly.service - Plunkly game + bot.
+Nov 07 17:05:55 impressed-jade.ptr.network uvicorn[2049182]: INFO:     Started server process [2049182]
+Nov 07 17:05:55 impressed-jade.ptr.network uvicorn[2049182]: INFO:     Waiting for application startup.
+Nov 07 17:05:57 impressed-jade.ptr.network uvicorn[2049182]: INFO:     Application startup complete.
+Nov 07 17:05:57 impressed-jade.ptr.network uvicorn[2049182]: INFO:     Uvicorn running on http://127.0.0.1:8417 (Press CTRL+C to quit)
+Nov 07 17:05:58 impressed-jade.ptr.network uvicorn[2049182]: INFO:     127.0.0.1:53290 - "GET /healthz HTTP/1.1" 200 OK
+Nov 07 17:05:58 impressed-jade.ptr.network uvicorn[2049182]: INFO:     89.208.113.147:0 - "GET /healthz HTTP/1.0" 200 OK
+Nov 07 17:05:58 impressed-jade.ptr.network uvicorn[2049182]: INFO:     89.208.113.147:0 - "HEAD / HTTP/1.0" 200 OK
+Nov 07 17:05:58 impressed-jade.ptr.network uvicorn[2049182]: INFO:     89.208.113.147:0 - "HEAD /assets/hero_0.webp?v=5f1dd38 HTTP/1.0" 404 Not Found
+Nov 07 17:05:58 impressed-jade.ptr.network uvicorn[2049182]: INFO:     127.0.0.1:53340 - "POST /api/load HTTP/1.1" 401 Unauthorized
+[14:05:58] == report
