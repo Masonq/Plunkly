@@ -323,6 +323,20 @@ button{font-family:inherit;color:inherit}
 @keyframes vin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .room .act,.room .rdy{z-index:3}.room .walk{z-index:1}.room .rn{z-index:2}
 .cl.new::before{top:8px;bottom:auto;right:6px}
+
+/* ===== v3 ===== */
+.tip{position:fixed;z-index:58;width:260px;padding:12px 14px;border-radius:12px;background:#F2E6C4;color:#2A2215;font-size:13.5px;line-height:1.4;box-shadow:0 12px 30px rgba(0,0,0,.6);animation:fadeup .3s both}
+.tip button{display:block;margin-top:8px;border:0;background:#2A2215;color:#F2E6C4;border-radius:8px;height:30px;padding:0 12px;font-size:12px;font-weight:700;cursor:pointer}
+.tip::after{content:"";position:absolute;left:calc(var(--ax,130px) - 8px);width:16px;height:16px;background:#F2E6C4;transform:rotate(45deg)}
+.tip.dn::after{top:-7px}.tip.up::after{bottom:-7px}
+.tipel{box-shadow:0 0 0 3px #F2E6C4,0 0 24px rgba(242,230,196,.6)!important;position:relative;z-index:21}
+.room .lvb{position:absolute;left:8px;bottom:10px;z-index:2;font-size:9px;letter-spacing:1px;color:var(--am2);text-shadow:0 1px 2px #000}
+.room.lvup{animation:lvup 1s ease-out}
+@keyframes lvup{0%{filter:brightness(2.2) saturate(1.4)}100%{filter:none}}
+.obj.pulse{animation:objp 2s ease-in-out infinite}
+@keyframes objp{50%{box-shadow:0 0 16px rgba(227,161,59,.45)}}
+.obj.scn.pulse{animation:objp2 2s ease-in-out infinite}
+@keyframes objp2{50%{box-shadow:0 0 16px rgba(90,167,214,.55)}}
 </style>
 </head>
 <body>
@@ -370,7 +384,7 @@ let HAP=()=>{};if(TG){try{TG.ready();TG.expand();TG.setHeaderColor('#0B0C0A');TG
 const api=(p,b={})=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:INIT,...b})}).then(r=>r.ok?r.json():null).catch(()=>null);
 /* ---- sound ---- */
 let AC=null;const ac=()=>{if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC};
-function tone(f,d,type='sine',g=.08,w=0,f2){const c=ac();if(!c)return;const t=c.currentTime+w,o=c.createOscillator(),v=c.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);v.gain.setValueAtTime(g,t);v.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(v).connect(c.destination);o.start(t);o.stop(t+d+.02)}
+function tone(f,d,type='sine',g=.08,w=0,f2){const c=ac();if(!c||window.__mute)return;const t=c.currentTime+w,o=c.createOscillator(),v=c.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);v.gain.setValueAtTime(g,t);v.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(v).connect(c.destination);o.start(t);o.stop(t+d+.02)}
 const SFX={tap:()=>tone(300,.05,'triangle',.03),col:()=>{tone(660,.06,'triangle',.05);tone(990,.08,'triangle',.04,.05)},ok:()=>[392,523,659].forEach((f,i)=>tone(f,.18,'triangle',.07,i*.09)),bad:()=>{tone(160,.25,'sawtooth',.05,0,90)},hit:()=>tone(880,.07,'square',.04),miss:()=>tone(120,.15,'square',.05),clue:()=>{tone(220,.4,'sine',.07,0,440);tone(660,.3,'sine',.04,.15)}};
 document.addEventListener('pointerdown',()=>ac(),{once:true});
 ['gesturestart','gesturechange'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
@@ -397,7 +411,7 @@ const ROOM={
  gen2:{n:'Генератор',img:'gen',res:'energy',base:6,st:'str',upg:1,build:'deep',cost:{tokens:120,parts:40}},
  pump:{n:'Насосная',img:'water',res:'water',base:6,st:'str',upg:1,build:'deep mid',cost:{tokens:100,parts:30}},
  kitchen:{n:'Кухня',img:'food',res:'food',base:4,st:'agi',upg:1,build:'deep top',cost:{tokens:80,parts:20}},
- work:{n:'Мастерская',img:'work',res:'parts',base:3,st:'agi',upg:1,build:'deep',cost:{tokens:150,parts:30}},
+ work:{n:'Мастерская',img:'work',res:'parts',base:4,st:'agi',upg:1,build:'deep',cost:{tokens:150,parts:30}},
  farm:{n:'Ферма',img:'green',res:'food',base:8,st:'int',upg:1,build:'mid',cost:{tokens:140,parts:40}},
  market:{n:'Рынок',img:'store',res:'tokens',base:3,st:'int',upg:1,build:'mid top',cost:{tokens:200,parts:60}},
  live:{n:'Жилой отсек',img:'live',upg:1,build:'deep mid top',cost:{tokens:90,parts:30}},
@@ -433,9 +447,9 @@ const SC={
  interro:[{w:'nar',t:'Тебя вызывают на верхний уровень. В комнате без окон ждёт Виктор Грей.'},{w:'grey',t:'Шериф. Ко мне поступают тревожные сообщения. Вас видят там, где вам быть не нужно.'},{w:'you',ch:[{t:'Я выполняю свою работу.',fx:{interro:'deny'}},{t:'Признаю. Больше не повторится.',fx:{interro:'give'}}]}]};
 const CH=[{n:1,t:'Несчастный случай',p:'Твоего напарника нашли у лестницы. Все говорят — сорвался.',steps:[{k:'scene',id:'c1_intro',who:'eva'},{k:'act',slot:'40L',act:'repair',t:'Почини главный генератор',hard:0},{k:'col',res:'energy',n:60,t:'Собери 60 энергии с комнат'},{k:'scene',id:'c1_holt',who:'holt'},{k:'act',slot:'33L',act:'search',t:'Обыщи шкафчик Алекса'},{k:'scene',id:'c1_mia',who:'mia'},{k:'build',t:'work',tx:'Построй мастерскую внизу'},{k:'combine',id:'went_up',t:'Сопоставь ключ-карту и показания Мии'},{k:'scene',id:'c1_end',who:'mia'},{k:'end'}]},
  {n:2,t:'Подделка',p:'Значок шерифа даёт доступ наверх. Но генератор снова умирает.',steps:[{k:'scene',id:'c2_mayor',who:'mayor'},{k:'act',slot:'40L',act:'repair',t:'Генератор сбоит — найди причину',hard:1},{k:'act',slot:'30L',act:'search',t:'Проверь склад поставок'},{k:'scene',id:'c2_eva',who:'eva'},{k:'combine',id:'sabotage',t:'Сопоставь подшипник и накладную'},{k:'craft',item:'bearing_ok',t:'Изготовь настоящий подшипник'},{k:'lv',slot:'40L',n:3,t:'Улучши главный генератор до 3 уровня'},{k:'act',slot:'18L',act:'talk',scene:'c2_nora',t:'Поговори с доктором Вейл'},{k:'combine',id:'murder',t:'Сопоставь заключение и показания Мии'},{k:'scene',id:'c2_end',who:'mia'},{k:'end'}]},
- {n:3,t:'Реликвия',p:'За завалом на тридцать восьмом кто-то хранит память.',steps:[{k:'scene',id:'c3_sol',who:'sol'},{k:'act',slot:'15L',act:'give',res:'energy',n:150,t:'Передай фермерам 150 энергии'},{k:'build',t:'farm',sec:'mid',tx:'Построй ферму в среднем секторе'},{k:'scene',id:'c3_law',who:'grey'},{k:'col',res:'parts',n:120,t:'Собери 120 деталей'},{k:'craft',item:'reader',t:'Собери считыватель в мастерской'},{k:'scene',id:'c3_read',who:'sol'},{k:'end'}]},
+ {n:3,t:'Реликвия',p:'За завалом на тридцать восьмом кто-то хранит память.',steps:[{k:'scene',id:'c3_sol',who:'sol'},{k:'act',slot:'15L',act:'give',res:'energy',n:150,t:'Передай фермерам 150 энергии'},{k:'build',t:'farm',sec:'mid',tx:'Построй ферму в среднем секторе'},{k:'scene',id:'c3_law',who:'grey'},{k:'col',res:'parts',n:80,t:'Собери 80 деталей'},{k:'craft',item:'reader',t:'Собери считыватель в мастерской'},{k:'scene',id:'c3_read',who:'sol'},{k:'end'}]},
  {n:4,t:'Очистка',p:'Скоро.',soon:1}];
-const CRAFT={bearing_ok:{n:'Настоящий подшипник',cost:{parts:60},time:60,need:()=>stepIs('craft','bearing_ok')},reader:{n:'Считыватель',cost:{parts:100},time:90,need:()=>stepIs('craft','reader')&&hasClue('drive')}};
+const CRAFT={bearing_ok:{n:'Настоящий подшипник',cost:{parts:60},time:60,need:()=>stepIs('craft','bearing_ok')},reader:{n:'Считыватель',cost:{parts:80},time:90,need:()=>stepIs('craft','reader')&&hasClue('drive')}};
 Object.assign(HERO,{b9:{n:'Голос Бункера 9',r:'радиосвязь',img:AS('room_radio')}});
 Object.assign(CLUE,{cleanlog:{n:'Запись очистки',d:'Сол прошёл за холм и не упал. Камеру «выключили» сразу после этого.',img:AS('screen')},hill:{n:'За холмом можно идти',d:'Запись «День 0» и очистка Сола говорят одно: снаружи можно жить.',img:AS('screen'),ins:1},
  photo:{n:'Фото Основателей',d:'Люди под открытым небом. На обороте: «Основатели. День 0».',img:AS('clue_photo')},signal:{n:'Голос Бункера 9',d:'«Мы открыли двери шесть лет назад. Ваш старик дошёл до нас».',img:AS('clue_reader')},
@@ -578,7 +592,7 @@ function animTop(){cancelAnimationFrame(dispT);const step=()=>{let more=false;RK
 const ROWH=112;
 const DISP={};let dispT=0;
 function drawTop(){if(!$('rs').children.length)$('rs').innerHTML=RK.map(k=>`<div class="rc" data-r="${k}"><img src="${RES[k].img}" alt=""><span></span></div>`).join('');RK.forEach(k=>{if(DISP[k]==null)DISP[k]=S.res[k]});animTop();$('susB').style.width=S.sus+'%';$('susW').classList.toggle('hot',S.sus>=70);
-  const s=curStep();$('objB').classList.toggle('scn',!!s&&s.k==='scene');$('objK').textContent=s&&s.k==='scene'?'СЦЕНА':'ЦЕЛЬ';$('objT').textContent=objText();
+  const s=curStep();$('objB').classList.toggle('scn',!!s&&s.k==='scene');$('objB').classList.toggle('pulse',!!s&&(s.k==='scene'||s.k==='act'));$('objK').textContent=s&&s.k==='scene'?'СЦЕНА':'ЦЕЛЬ';$('objT').textContent=objText();
   $('scrS').textContent=S.st.f.end_truth?'Трава. Ветер. День 0.':S.st.f.end_exodus?'Шлюз открыт. Следы ведут за холм.':S.st.f.cleaned?'На склоне — следы. Их забыли стереть.':S.st.f.grey_mayor?'Экран показывает пыль. Как всегда. Или нет?':'Снаружи ветер и пыль';dots()}
 function roomHtml(k){const r=room(k),d=r?ROOM[r.t]:null,lv=lvOf(k),sec=secOf(lv),zone=inZone(k),a=r?slotAction(k):null,isT=a&&a.act&&a.act!=='inc'&&a.act!=='fix';
   const hsh=[...k].reduce((a,c)=>a*31+c.charCodeAt(0),7)%997;
@@ -592,7 +606,7 @@ function roomHtml(k){const r=room(k),d=r?ROOM[r.t]:null,lv=lvOf(k),sec=secOf(lv)
   const walk=r.w.map((id,i)=>{const p=S.ppl.find(x=>x.id===id);return p&&!r.broken&&!r.stop?`<img class="walk" src="${AS(p.f%2?'spr_dweller_m':'spr_dweller_f')}" style="--wd:${7+((hsh+i*5)%7)}s;animation-delay:-${(hsh*(i+1))%9}s" alt="">`:''}).join('');
   const wk=d.res?`<div class="wk">${[0,1].map(i=>{const p=S.ppl.find(x=>x.id===r.w[i]);return p?`<img src="${AS('face_'+p.f)}" alt="">`:'<i></i>'}).join('')}</div>`:'';
   const sub=d.sp?(d.sub||(r.t==='sheriff'&&!S.st.f.sheriff?'Закрыт':'')):(r.broken?'Сломан':r.stop?'Остановлено':`Ур. ${r.lv}${d.res?` · ${rate(k).toFixed(1)}/мин`:''}`);
-  return `<button class="room${lockd?' lockd':''}${isT?' tgt':''}${inc||r.stop?' inc':''}" data-k="${k}" style="background-image:url(${AS('room_'+d.img)})"><span class="lamp" style="--fl:${6+hsh%9}s"></span>${walk}<div class="rn">${d.n}<span class="rl">${sub}</span></div>${!act&&pct>=.25?`<span class="rdy"><img src="${RES[d.res].img}" alt=""></span>`:''}${act}${wk}${inc}${d.res?`<span class="pb"><i style="width:${Math.min(100,pct*100)}%"></i></span>`:''}${lockd&&!zone?`<span class="lockline">${SECT[sec].n.split(' ·')[0]}<br>нет доступа</span>`:''}</button>`}
+  return `<button class="room${lockd?' lockd':''}${isT?' tgt':''}${inc||r.stop?' inc':''}" data-k="${k}" style="background-image:url(${AS('room_'+d.img)})"><span class="lamp" style="--fl:${6+hsh%9}s"></span>${walk}<div class="rn">${d.n}<span class="rl">${sub}</span></div>${!d.sp&&r.lv>1?`<span class="lvb">${'▮'.repeat(Math.min(5,Math.ceil(r.lv/2)))}</span>`:''}${!act&&pct>=.25?`<span class="rdy"><img src="${RES[d.res].img}" alt=""></span>`:''}${act}${wk}${inc}${d.res?`<span class="pb"><i style="width:${Math.min(100,pct*100)}%"></i></span>`:''}${lockd&&!zone?`<span class="lockline">${SECT[sec].n.split(' ·')[0]}<br>нет доступа</span>`:''}</button>`}
 function drawLevels(){let h='',last='';const mx=S.st.ch>=5?43:40;for(let l=1;l<=mx;l++){const sec=secOf(l);if(sec!==last){h+=`<div class="sector${S.zone.includes(sec)?' on':''}"><b>${SECT[sec].n}</b></div>`;last=sec}h+=`<div class="lv" data-l="${l}">${roomHtml(l+'L')}<div class="stair" style="background-position:center ${-l*ROWH}px"><span class="n">${l}</span></div>${roomHtml(l+'R')}</div>`}
   $('lvls').innerHTML=h;$('lvls').querySelectorAll('.room[data-k]').forEach(b=>b.onclick=()=>tapRoom(b.dataset.k,b));drawGoT();if(!drawLevels._s){drawLevels._s=1;setTimeout(()=>{const r=$('lvls').querySelector('.lv[data-l="36"]');if(r)window.scrollTo(0,r.offsetTop-80)},60)}}
 function drawLive(){const bl=S.blackEnd&&Date.now()<S.blackEnd;$('v-base').classList.toggle('blk',!!bl);if(bl)$('blkT').textContent=mmss(S.blackEnd-Date.now());if(curV!=='base')return;$('lvls').querySelectorAll('.room[data-k]').forEach(b=>{const k=b.dataset.k,r=room(k);if(!r||!ROOM[r.t].res)return;const bc=bufCap(k),pct=bc?r.buf/bc:0;const pb=b.querySelector('.pb i');if(pb)pb.style.width=Math.min(100,pct*100)+'%';const has=b.querySelector('.rdy'),want=pct>=.25&&!b.querySelector('.act');if(!!has!==want){b.outerHTML=roomHtml(k);const nb=$('lvls').querySelector(`.room[data-k="${k}"]`);if(nb)nb.onclick=()=>tapRoom(k,nb)}});drawTop()}
@@ -604,6 +618,7 @@ function tapRoom(k,el){SFX.tap();const r=room(k);if(!r){if(inZone(k))openBuild(k
   if(a&&!(d.res&&r.buf>=1&&a.act!=='inc'&&a.act!=='fix'&&a.act!=='repair')){doAct(k);return}
   if(d.res&&r.buf>=bufCap(k)*.25&&inZone(k)){collect(k,el);drawLive();return}
   openRoom(k)}
+function fxRoom(k,txt){setTimeout(()=>{const el=$('lvls').querySelector(`.room[data-k="${k}"]`);if(!el)return;el.classList.remove('lvup');void el.offsetWidth;el.classList.add('lvup');const c=rc(el);popText(c.x,c.y,txt,'#F2C46A')},120)}
 /* ---- room sheet ---- */
 const costOf=(k)=>{const r=room(k);const lv=r.lv;return{tokens:Math.round(60*Math.pow(lv,1.6)),parts:Math.round(20*Math.pow(lv,1.5))}};
 const canPay=c=>Object.entries(c).every(([k,v])=>S.res[k]>=v);const pay=c=>Object.entries(c).forEach(([k,v])=>S.res[k]-=v);
@@ -620,7 +635,7 @@ function openRoom(k){const r=room(k),d=ROOM[r.t],lv=lvOf(k),zone=inZone(k);
    ${d.res&&r.buf>=1&&zone?`<button class="btn gy w100" id="rCol" style="margin-top:12px"><img src="${RES[d.res].img}" alt="">Собрать ${Math.floor(r.buf)}</button>`:''}
    ${extra}
    ${mx?'<div class="sub" style="text-align:center;margin-top:14px">Максимальный уровень</div>':zone?`${costHtml(c)}<button class="btn w100" id="rUp" style="margin-top:10px"${canUp?'':' disabled'}>Улучшить до ${r.lv+1}</button><div class="why">${canUp?'':'Не хватает ресурсов'}</div>`:'<div class="why">Сектор не под твоим влиянием</div>'}`,true);
-  if($('rUp'))$('rUp').onclick=()=>{if(!canPay(c)||!lock('up'))return;pay(c);r.lv++;dayProg('up');SFX.ok();HAP('ok');checkStep();saveState(true);drawAll();openRoom(k)};
+  if($('rUp'))$('rUp').onclick=()=>{if(!canPay(c)||!lock('up'))return;pay(c);r.lv++;dayProg('up');SFX.ok();HAP('ok');checkStep();saveState(true);drawAll();openRoom(k);fxRoom(k,'УРОВЕНЬ '+r.lv)};
   if($('rCol'))$('rCol').onclick=()=>{collect(k,$('rCol'));openRoom(k);drawAll()};
   if($('rFix'))$('rFix').onclick=()=>doAct(k);
   if($('rAdd'))$('rAdd').onclick=()=>pickWorker(k);
@@ -636,7 +651,7 @@ function bindCraft(){document.querySelectorAll('[data-cr]').forEach(b=>b.onclick
 function openBuild(k){const sec=secOf(lvOf(k));const opts=Object.entries(ROOM).filter(([t,d])=>d.build&&d.build.split(' ').includes(sec)&&(!d.req||S.st.f[d.req]));
   const cst=t=>{const n=Object.values(S.slots).filter(r=>r.t===t).length,m=Math.pow(1.35,Math.max(0,n-1));return Object.fromEntries(Object.entries(ROOM[t].cost).map(([kk,v])=>[kk,Math.round(v*m)]))};
   openSheet(`<div class="sh"><h3>Строительство</h3><div class="sub">Уровень ${lvOf(k)} · ${SECT[sec].n}</div></div><div class="bgrid">${opts.map(([t,d])=>{const c=cst(t);return `<button class="bopt" data-t="${t}" style="background-image:url(${AS('room_'+d.img)})"><div><b>${d.n}</b><small>${d.res?`${RES[d.res].n} · ${STAT[d.st]}`:t==='live'?'+4 места жителям':'+300 к складу'}</small><div class="cs">${Object.entries(c).map(([kk,v])=>chip(RES[kk].img,fmt(v),S.res[kk]<v)).join('')}</div></div></button>`}).join('')}</div>`);
-  document.querySelectorAll('.bopt').forEach(b=>b.onclick=()=>{const t=b.dataset.t,c=cst(t);if(!canPay(c)){toast('Не хватает ресурсов');SFX.bad();return}if(!lock('bd'))return;pay(c);S.slots[k]={t,lv:1,w:[],buf:0};dayProg('up');SFX.ok();HAP('ok');closeSheet();checkStep();saveState(true);drawAll();if(ROOM[t].res)setTimeout(()=>{openRoom(k);pickWorker(k)},300)})}
+  document.querySelectorAll('.bopt').forEach(b=>b.onclick=()=>{const t=b.dataset.t,c=cst(t);if(!canPay(c)){toast('Не хватает ресурсов');SFX.bad();return}if(!lock('bd'))return;pay(c);S.slots[k]={t,lv:1,w:[],buf:0};dayProg('up');SFX.ok();HAP('ok');closeSheet();checkStep();saveState(true);drawAll();fxRoom(k,'ПОСТРОЕНО');if(ROOM[t].res)setTimeout(()=>{openRoom(k);pickWorker(k)},300)})}
 /* ---- people view ---- */
 function drawPeople(){$('pplP').textContent=`${S.ppl.length} из ${popCap()} мест · носильщиков: ${S.port}`;
   $('pplL').innerHTML=`<div class="card" style="margin:0"><div class="row"><img src="${AS('spr_dweller_f')}" alt="" style="width:40px;height:60px;object-fit:contain"><div class="grow"><div class="ttl" style="font-size:15px">Носильщики · ${S.port}/6</div><div class="sub">Сами собирают ресурсы с комнат и несут по лестнице. Чем дальше уровень, тем дольше путь.</div></div><button class="btn" id="hireB"${S.port>=6?' disabled':''}>${S.port>=6?'Макс.':`<img src="${RES.tokens.img}" alt="">${fmt(hireCost())}`}</button></div></div>`+S.ppl.map(p=>{const j=p.job?room(p.job):null;return `<button class="res" data-p="${p.id}"><img class="fc" src="${AS('face_'+p.f)}" alt=""><div class="grow"><div class="nm">${esc(p.n)} <span style="color:var(--mu);font-weight:400;font-size:12px">ур. ${p.lv}</span></div>${sbars(p,j?ROOM[j.t].st:null)}<div class="tag">${j?ROOM[j.t].n+' · ур. '+lvOf(p.job):'Без работы'}</div></div></button>`}).join('');
@@ -648,7 +663,7 @@ function openPerson(id){const p=S.ppl.find(x=>x.id===id);const jobs=Object.entri
    <div class="ttl" style="margin-top:14px;font-size:15px">Работа</div><div class="list">${jobs.map(([k,r])=>{const d=ROOM[r.t];return `<button class="res${p.job===k?' sel':''}" data-j="${k}"><span class="bx">${p.job===k?'✓':''}</span><div class="grow"><div class="nm">${d.n} · ур. ${lvOf(k)}</div><div class="st">Навык «${STAT[d.st]}»: <b>${p[d.st]}</b></div></div></button>`}).join('')}<button class="res${!p.job?' sel':''}" data-j=""><span class="bx">${!p.job?'✓':''}</span><div class="grow"><div class="nm">Без работы</div></div></button></div>`);
   document.querySelectorAll('[data-j]').forEach(b=>b.onclick=()=>{assign(p,b.dataset.j||null);SFX.tap();saveState(true);drawAll();openPerson(id)})}
 /* ---- story view ---- */
-function drawStory(){const c=curCh(),s=curStep();$('curCh').innerHTML=c&&!c.soon?`<div style="font-family:var(--fd);color:var(--am);letter-spacing:.2em;font-size:12px">ГЛАВА ${c.n}</div><div class="ttl" style="font-size:22px;margin-top:2px">${c.t}</div><div class="sub">${c.p}</div><div class="list">${c.steps.filter(x=>x.k!=='end').map((x,i)=>{const done=i<S.st.step,cur=i===S.st.step;return `<div class="tk${cur?' cur':''}"${cur?' style="border-color:rgba(227,161,59,.6)"':''}><span style="width:22px;text-align:center;color:${done?'var(--gr)':cur?'var(--am2)':'var(--mu)'}">${done?'✓':cur?'●':'○'}</span><div class="grow" style="${done?'color:var(--mu)':''}">${x.k==='scene'?`Разговор: ${HERO[x.who].n}`:x.tx||x.t}</div></div>`}).join('')}</div>`:`<div class="ttl">${S.st.f.ending?'Финал: '+ENDS[S.st.f.ending][0]:'Продолжение следует'}</div><div class="sub">${S.st.f.ending?ENDS[S.st.f.ending][1]+' Второй сезон выйдет в следующих обновлениях.':'Новые главы выйдут скоро.'}</div>`;
+function drawStory(){if(!$('sndB')){const b=document.createElement('button');b.id='sndB';b.className='btn gy';b.style.cssText='position:absolute;right:var(--pad);top:18px;height:36px;font-size:12px;padding:0 12px';$('v-story').style.position='relative';$('v-story').appendChild(b);b.onclick=()=>{S.mute=!S.mute;window.__mute=S.mute;if(S.mute)ambOff();else ambOn();saveState(true);drawStory()}}$('sndB').textContent=S.mute?'🔇 Звук выкл.':'🔊 Звук вкл.';const c=curCh(),s=curStep();$('curCh').innerHTML=c&&!c.soon?`<div style="font-family:var(--fd);color:var(--am);letter-spacing:.2em;font-size:12px">ГЛАВА ${c.n}</div><div class="ttl" style="font-size:22px;margin-top:2px">${c.t}</div><div class="sub">${c.p}</div><div class="list">${c.steps.filter(x=>x.k!=='end').map((x,i)=>{const done=i<S.st.step,cur=i===S.st.step;return `<div class="tk${cur?' cur':''}"${cur?' style="border-color:rgba(227,161,59,.6)"':''}><span style="width:22px;text-align:center;color:${done?'var(--gr)':cur?'var(--am2)':'var(--mu)'}">${done?'✓':cur?'●':'○'}</span><div class="grow" style="${done?'color:var(--mu)':''}">${x.k==='scene'?`Разговор: ${HERO[x.who].n}`:x.tx||x.t}</div></div>`}).join('')}</div>`:`<div class="ttl">${S.st.f.ending?'Финал: '+ENDS[S.st.f.ending][0]:'Продолжение следует'}</div><div class="sub">${S.st.f.ending?ENDS[S.st.f.ending][1]+' Второй сезон выйдет в следующих обновлениях.':'Новые главы выйдут скоро.'}</div>`;
   $('chL').innerHTML=CH.map(x=>{const done=x.n<S.st.ch,cur=x.n===S.st.ch&&!x.soon;return `<div class="chc${done?' done':cur?' cur':x.soon?' lk':' lk'}"><span class="th" style="background-image:url(${AS(CHBG[x.n]||'stairs')})"></span><span class="num">${done?'✓':x.n}</span><div class="grow"><div class="ttl" style="font-size:15px">${x.t}</div><div class="sub">${x.soon?'Скоро':x.p}</div></div></div>`}).join('');drawTasks()}
 const TASKS=[{id:'col',n:'Собери ресурсы с комнат',g:15,rw:{tokens:60}},{id:'port',n:'Носильщики доставят 10 грузов',g:10,rw:{tokens:40}},{id:'up',n:'Построй или улучши комнату',g:2,rw:{parts:40}},{id:'fix',n:'Устрани аварию',g:1,rw:{tokens:50}}];
 function dayReset(){if(S.day.d!==today())S.day={d:today(),p:{},got:[]}}
@@ -671,6 +686,20 @@ async function drawAdmin(){const c=$('admCard');if(!IS_ADMIN){c.style.display='n
   const j=await api('/api/admin/stats');if(j)$('aSt').innerHTML=`Игроков: <b>${j.total}</b> · сегодня: <b>${j.dau[0].n}</b> · новых: <b>${j.new_today}</b> · ⭐ за 7 дн.: <b>${j.stars_week}</b>`;
   $('aF').onclick=async()=>{const r=await api('/api/admin/find',{q:$('aQ').value});$('aL').innerHTML=(r&&r.list||[]).map(u=>`<div class="res"><div class="grow"><div class="nm">${esc(u.name)} <span style="color:var(--mu);font-size:11px">${u.uid}</span></div></div><button class="btn gy" data-g="${u.uid}" style="height:34px;font-size:12px">+1000 жетонов</button></div>`).join('')||'<div class="sub">Никого</div>';$('aL').querySelectorAll('[data-g]').forEach(b=>b.onclick=async()=>{const r2=await api('/api/admin/give',{uid:+b.dataset.g,rw:{tokens:1000}});toast(r2&&r2.ok?'Выдано':'Ошибка')})};
   $('aB').onclick=async()=>{const v=$('aBc').value.trim();if(!v||!lock('bc',3000))return;const r=await api('/api/admin/broadcast',{text:v});toast(r&&r.ok?'Рассылка запущена':'Уже идёт рассылка')}}
+/* ================= TIPS ================= */
+const TIPS={collect:{el:()=>[...document.querySelectorAll('.room .rdy')].map(e=>e.closest('.room'))[0],t:'Комната накопила ресурсы — нажми, чтобы собрать'},assign:{el:()=>[...document.querySelectorAll('.room[data-k]')].find(b=>{const r=room(b.dataset.k);return r&&ROOM[r.t].res&&!r.w.length&&inZone(b.dataset.k)}),t:'В комнате никто не работает. Нажми на неё и назначь жителя — выработка вырастет'},
+ clues:{el:()=>document.querySelector('.nb[data-v="clues"]'),t:'Новые улики на доске. Сопоставляй их, чтобы двигать расследование',when:()=>S.clues.length>=2},sus:{el:()=>$('susW'),t:'Это подозрение Отдела данных. Обыски его поднимают, обычная работа — снижает. На 100% тебя вызовут на допрос',when:()=>S.sus>=10}};
+let tipOn=null;
+function tipCheck(){if(tipOn||$('scene').classList.contains('on')||$('sh').classList.contains('open')||$('chcard').classList.contains('on')||$('mg').classList.contains('on')||curV!=='base')return;S.tips=S.tips||[];for(const [id,tp] of Object.entries(TIPS)){if(S.tips.includes(id))continue;if(tp.when&&!tp.when())continue;const el=tp.el();if(!el)continue;const r=el.getBoundingClientRect();if(r.bottom<90||r.top>innerHeight-90){if(id==='collect'||id==='assign')continue}showTip(id,el,tp.t);break}}
+function showTip(id,el,txt){tipOn=id;S.tips.push(id);const r=el.getBoundingClientRect(),d=document.createElement('div');d.className='tip';d.innerHTML=`${txt}<button>Понятно</button>`;document.body.appendChild(d);const below=r.top<innerHeight/2;d.style.left=Math.max(12,Math.min(innerWidth-272,r.left+r.width/2-130))+'px';d.style.top=(below?r.bottom+12:r.top-d.offsetHeight-12)+'px';d.classList.add(below?'dn':'up');d.style.setProperty('--ax',(r.left+r.width/2-parseFloat(d.style.left))+'px');el.classList.add('tipel');
+  const close=()=>{d.remove();el.classList.remove('tipel');tipOn=null;saveState(true)};d.querySelector('button').onclick=close;setTimeout(()=>{if(d.isConnected)close()},9000)}
+setInterval(tipCheck,2500);
+/* ================= AMBIENT ================= */
+let AMB=null;
+function ambOn(){const c=ac();if(!c||AMB||S.mute)return;const g=c.createGain();g.gain.value=0;g.connect(c.destination);const o1=c.createOscillator(),o2=c.createOscillator(),f=c.createBiquadFilter();o1.type='sawtooth';o1.frequency.value=55;o2.type='sine';o2.frequency.value=82.4;f.type='lowpass';f.frequency.value=180;o1.connect(f);o2.connect(f);f.connect(g);o1.start();o2.start();g.gain.linearRampToValueAtTime(.025,c.currentTime+3);AMB={g,o1,o2,iv:setInterval(()=>{if(S.mute||document.hidden)return;tone(rnd(90,160),rnd(.3,.7),'triangle',.012,0,rnd(60,90))},rnd(9000,15000))}}
+function ambOff(){if(!AMB)return;const c=ac();try{AMB.g.gain.linearRampToValueAtTime(0,c.currentTime+.5);setTimeout(()=>{try{AMB.o1.stop();AMB.o2.stop()}catch(e){}},600)}catch(e){}clearInterval(AMB.iv);AMB=null}
+document.addEventListener('pointerdown',()=>{if(!S.mute)ambOn()},{once:true});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)ambOff();else if(!S.mute)setTimeout(ambOn,300)});
 /* ================= NAV ================= */
 let curV='base';
 function go(v){curV=v;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('on',b.dataset.v===v));window.scrollTo(0,0);drawAll()}
@@ -689,7 +718,7 @@ setInterval(tick,1000);setInterval(()=>saveState(false),5000);addEventListener('
 $('scrC').style.backgroundImage=`url(${AS('screen')})`;
 $('scrC').onclick=()=>openSheet(`<div class="sh"><h3>Экран</h3><div class="sub">Кафетерий · уровень 1</div></div><div class="shimg" style="background-image:url(${AS('screen')});height:200px"></div><div class="sub" style="font-size:14px;color:var(--tx)">Камеры наверху показывают мир снаружи. Серое небо, мёртвый холм, руины на горизонте. Так было всегда. По крайней мере, так говорит Пакт.</div>`);
 let localTs=0;try{const r=JSON.parse(localStorage.getItem(SKEY)||'null');if(r&&applyState(r)){localTs=r.ts||0}}catch(e){}
-if(!Object.keys(S.slots).length)initNew();ensureSlots();
+if(!Object.keys(S.slots).length)initNew();ensureSlots();window.__mute=!!S.mute;
 offlineCatchUp();drawAll();
 function startGame(){$('splash').style.opacity=0;setTimeout(()=>$('splash').remove(),500);if(!S.started){S.started=true;const c=curCh();showCard(`ГЛАВА ${c.n}`,c.t,c.p,()=>{playScene('c1_intro',()=>{nextStep()})})}}
 setTimeout(()=>{$('ldb').style.width='100%'},50);setTimeout(startGame,1300);
