@@ -512,6 +512,7 @@ button{font-family:inherit;color:inherit}
 .tuf{display:flex;flex-direction:column;gap:5px;margin-top:8px}
 .tul{font-size:12.5px;padding:7px 10px;border-radius:8px;background:#121310;border:1px solid var(--ln);color:var(--mu)}
 .tul span{color:#6F6B5E;font-style:italic}.tul.ok{border-color:rgba(124,191,90,.5)}.tul.ok span{color:#CDEBB8}
+.lb.hint{border-color:var(--bl);box-shadow:0 0 0 2px var(--bl),0 0 16px rgba(90,167,214,.6);animation:tgtp2 1s ease-in-out infinite}
 </style>
 </head>
 <body>
@@ -1075,9 +1076,12 @@ function pzPipes(){const n=PZ.def.n||4,st=PZ.st;const D=[[0,-1],[1,0],[0,1],[-1,
   st.g=g;st.solve=()=>{g.forEach(row=>row.forEach(c=>c.r=0));draw()};if(flow().has((n-1)+','+ey))g[sy][0].r=(g[sy][0].r+1)%4;draw()}
 /* --- lights (switchboard) --- */
 function pzLights(){const n=PZ.def.n||3,goal=PZ.def.goal==='off'?0:1,st=PZ.st;st.g=[...Array(n*n)].map(()=>goal);st.m=0;const tog=i=>{const x=i%n,y=Math.floor(i/n);[[0,0],[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const a=x+dx,b=y+dy;if(a>=0&&b>=0&&a<n&&b<n)st.g[b*n+a]^=1})};
-  for(let k=0;k<(n===3?4:7);k++)tog(ri(0,n*n-1));if(st.g.every(v=>v===goal))tog(Math.floor(n*n/2));
-  const draw=()=>{$('pzB').innerHTML=`<div class="lt" style="grid-template-columns:repeat(${n},1fr)">${st.g.map((v,i)=>`<button class="lb${v?' on':''}" data-i="${i}"><i></i></button>`).join('')}</div><div class="sub" style="text-align:center;margin-top:10px">Нажатие переключает лампу и соседние. ${goal?'Зажги все лампы':'Погаси все лампы'} · ходов: ${st.m}</div>`;
-   $('pzB').querySelectorAll('.lb').forEach(b=>b.onclick=()=>{tog(+b.dataset.i);st.m++;SFX.hit();draw();if(st.g.every(v=>v===goal))pzWin(goal?'Схема замкнута':'Контуры разомкнуты')})};draw()}
+  for(let k=0;k<(n===3?4:7);k++)tog(ri(0,n*n-1));if(st.g.every(v=>v===goal))tog(Math.floor(n*n/2));st.g0=st.g.slice();st.hints=3;st.hi=-1;
+  const solve=()=>{const N=n*n;let best=null;for(let m=0;m<(1<<N);m++){let c=0;for(let i=0;i<N;i++)if(m>>i&1)c++;if(best&&c>=best.c)continue;const g=st.g.slice();for(let i=0;i<N;i++)if(m>>i&1){const x=i%n,y=Math.floor(i/n);[[0,0],[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const a=x+dx,b=y+dy;if(a>=0&&b>=0&&a<n&&b<n)g[b*n+a]^=1})}if(g.every(v=>v===goal))best={m,c}}if(!best)return -1;for(let i=0;i<N;i++)if(best.m>>i&1)return i;return -1};
+  const draw=()=>{$('pzB').innerHTML=`<div class="lt" style="grid-template-columns:repeat(${n},1fr)">${st.g.map((v,i)=>`<button class="lb${v?' on':''}${st.hi===i?' hint':''}" data-i="${i}"><i></i></button>`).join('')}</div><div class="sub" style="text-align:center;margin-top:10px">Нажатие переключает лампу и 4 соседние (сверху, снизу, слева, справа). ${goal?'Зажги все лампы':'Погаси все лампы'} · ходов: ${st.m}</div><div class="row" style="margin-top:10px"><button class="btn gy grow" id="lbR">Сбросить</button><button class="btn gy grow" id="lbH"${st.hints?'':' disabled'}>Подсказка · ${st.hints}</button></div>`;
+   $('pzB').querySelectorAll('.lb').forEach(b=>b.onclick=()=>{tog(+b.dataset.i);st.m++;st.hi=-1;SFX.hit();draw();if(st.g.every(v=>v===goal))pzWin(goal?'Схема замкнута':'Контуры разомкнуты')});
+   $('lbR').onclick=()=>{st.g=st.g0.slice();st.m=0;st.hi=-1;SFX.tap();draw()};
+   $('lbH').onclick=()=>{if(!st.hints)return;st.hints--;st.hi=solve();SFX.tap();draw()}};draw()}
 /* --- find the lie --- */
 function pzLie(){const d=PZ.def,st=PZ.st;st.tries=2;const h=HERO[d.who]||{n:d.name,img:d.img};
   const draw=()=>{$('pzB').innerHTML=`<div class="lieh"><img src="${h.img}" alt=""><div><b>${h.n}</b><div class="sub">Одно из показаний не сходится с фактами. Найди его.</div></div></div><div class="liee">${(d.ev||[]).filter(c=>hasClue(c)).map(c=>`<span class="chip">${CLUE[c].n}</span>`).join('')}</div><div class="list">${d.st.map((s,i)=>`<button class="lies" data-i="${i}">«${s}»</button>`).join('')}</div><div class="sub" style="text-align:center;margin-top:8px">Попыток: ${st.tries}</div>`;
