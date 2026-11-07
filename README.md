@@ -1,5 +1,6 @@
-# Plunkly
-Tiny worlds. Big meetups. A space game for Telegram (WebApp) and the web.
-- `web/` — game client (single page, GSAP, canvas particles)
-- `app/` — FastAPI server: serves the game with cache busting, Telegram bot webhook
-- `deploy/deploy.sh` — one-shot server deploy (systemd + nginx + Let's Encrypt), pushes a report to the `reports` branch
+# Бункер 17
+
+Сюжетная игра-менеджмент для Telegram WebApp: подземный бункер на 40 уровней, лестница с носильщиками, жители, улики и главы.
+
+Сервер: FastAPI (`app/main.py`), клиент: `web/index.html`, арт: `web/assets`.
+Деплой: `deploy/deploy.sh`.

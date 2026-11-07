@@ -157,7 +157,7 @@ async def api_top(request: Request):
     return {"list": [{"name": n or "Player", "points": p, "power": pw, "me": uid == int(u["id"])} for uid, n, p, pw in rows], "rank": rank}
 
 
-SKUS = {"starter": ("Starter pack", 99), "deal_caps": ("Deal: 40 star pods", 25), "deal_mcaps": ("Deal: 12 module pods", 25), "deal_core": ("Deal: 25 evolution cores", 25), "deal_eggs": ("Deal: 3 pet eggs", 25), "eggs5": ("5 pet eggs", 60), "caps10": ("10 star pods", 50), "caps50": ("50 star pods", 200), "acc20": ("20 accelerators", 40), "vip30": ("VIP for 30 days", 300), "pass": ("Space Pass premium", 250)}
+SKUS = {"b_start": ("Survivor pack", 99), "b_tok": ("500 tokens", 25), "b_parts": ("300 parts", 25), "b_vip": ("VIP 30 days", 150), "starter": ("Starter pack", 99), "deal_caps": ("Deal: 40 star pods", 25), "deal_mcaps": ("Deal: 12 module pods", 25), "deal_core": ("Deal: 25 evolution cores", 25), "deal_eggs": ("Deal: 3 pet eggs", 25), "eggs5": ("5 pet eggs", 60), "caps10": ("10 star pods", 50), "caps50": ("50 star pods", 200), "acc20": ("20 accelerators", 40), "vip30": ("VIP for 30 days", 300), "pass": ("Space Pass premium", 250)}
 
 
 @app.post("/api/invoice")
@@ -168,9 +168,9 @@ async def api_invoice(request: Request):
     if sku not in SKUS:
         raise HTTPException(status_code=400)
     title, price = SKUS[sku]
-    qty = max(1, min(1 if (sku == "pass" or sku == "starter" or sku.startswith("deal_")) else 20, int(body.get("qty") or 1)))
+    qty = max(1, min(1 if (sku in ("pass", "starter", "b_start") or sku.startswith("deal_")) else 20, int(body.get("qty") or 1)))
     label = f"{title} ×{qty}" if qty > 1 else title
-    r = await tg("createInvoiceLink", title=f"Plunkly · {label}", description=label, payload=f"{u['id']}:{sku}:{qty}:{secrets.token_hex(4)}", currency="XTR", prices=[{"label": label, "amount": price * qty}])
+    r = await tg("createInvoiceLink", title=f"Бункер 17 · {label}", description=label, payload=f"{u['id']}:{sku}:{qty}:{secrets.token_hex(4)}", currency="XTR", prices=[{"label": label, "amount": price * qty}])
     if not r.get("ok"):
         raise HTTPException(status_code=502)
     return {"link": r["result"]}
@@ -491,7 +491,7 @@ async def adm_find(request: Request):
 async def adm_give(request: Request):
     body = await request.json(); admin(body)
     uid = int(body.get("uid") or 0); rw = body.get("rw") or {}
-    allowed = {"coin", "cry", "caps", "mcaps", "acc", "vou", "fuel", "core", "shard", "ess", "egg", "treat"}
+    allowed = {"tokens", "parts", "energy", "water", "food", "coin", "cry", "caps", "mcaps", "acc", "vou", "fuel", "core", "shard", "ess", "egg", "treat"}
     rw = {k: max(0, min(10**12, int(v))) for k, v in rw.items() if k in allowed and str(v).lstrip("-").isdigit()}
     if not uid or not rw:
         return {"ok": False}
@@ -499,7 +499,7 @@ async def adm_give(request: Request):
         c.execute("INSERT INTO grants(uid,sku,charge,claimed,ts,qty,data) VALUES(?,?,?,0,?,1,?)", (uid, "adm", f"adm-{uid}-{secrets.token_hex(4)}", int(time.time()), json.dumps(rw)))
     msg = (body.get("note") or "").strip()[:300]
     if msg:
-        await tg("sendMessage", chat_id=uid, text=msg, reply_markup={"inline_keyboard": [[{"text": "Открыть Plunkly", "web_app": {"url": play_url()}}]]})
+        await tg("sendMessage", chat_id=uid, text=msg, reply_markup={"inline_keyboard": [[{"text": "Открыть Бункер 17", "web_app": {"url": play_url()}}]]})
     return {"ok": True}
 
 BCAST = {"running": False, "sent": 0, "total": 0}
@@ -560,16 +560,18 @@ async def tg(method, **data):
 
 
 WELCOME = (
-    "<b>Welcome to Plunkly!</b>\n\n"
-    "Defend your tiny planet from space monsters, open star pods for epic gear and battle other captains in the arena.\n\n"
-    "Tap <b>Play</b> to open your planet."
+    "<b>Bunker 17</b>\n\n"
+    "Forty levels underground. One staircase. A screen that always shows a dead world.\n"
+    "Your partner was found at the bottom of the stairs. They say he slipped. You don't believe it.\n\n"
+    "Tap <b>Play</b> to go down."
 )
 
 
 WELCOME_RU = (
-    "<b>Добро пожаловать в Plunkly!</b>\n\n"
-    "Защищай свою маленькую планету от космических монстров, открывай звёздные капсулы с крутым снаряжением и сражайся с другими капитанами на арене.\n\n"
-    "Нажми <b>Играть</b>, чтобы открыть свою планету."
+    "<b>Бункер 17</b>\n\n"
+    "Сорок уровней под землёй. Одна лестница. Экран, на котором снаружи всегда мёртвый мир.\n"
+    "Твоего напарника нашли у подножия лестницы. Говорят, сорвался. Ты в это не веришь.\n\n"
+    "Нажми <b>Играть</b>, чтобы спуститься."
 )
 
 
@@ -615,14 +617,14 @@ async def webhook(secret: str, request: Request):
             pass
     if chat:
         await tg("sendMessage", chat_id=chat, text=WELCOME_RU if ru else WELCOME, parse_mode="HTML",
-                 reply_markup={"inline_keyboard": [[{"text": "Играть в Plunkly" if ru else "Play Plunkly", "web_app": {"url": play_url()}}]]})
+                 reply_markup={"inline_keyboard": [[{"text": "Играть" if ru else "Play", "web_app": {"url": play_url()}}]]})
         if ru:
             await tg("setChatMenuButton", chat_id=chat, menu_button={"type": "web_app", "text": "Играть", "web_app": {"url": play_url()}})
     return {"ok": True}
 
 
 NOTE = {
-    "storage": ("Your planet storage is full — the mine has stopped. Collect your stardust!", "Хранилище планеты заполнено — шахта простаивает. Собери пыль!"),
+    "storage": ("Bunker 17: all rooms are full, production has stopped. Come and collect.", "Бункер 17: все комнаты заполнены, выработка встала. Спустись и собери ресурсы."),
     "patrol": ("Your captain is back from an 8-hour patrol with full loot.", "Капитан вернулся из патруля с полной добычей. Забери награды!"),
     "capup": ("Your star pod upgrade is done — better drop chances!", "Капсула улучшена — шансы на редкие вещи выросли!"),
     "free": ("Free star pods are waiting in the shop.", "В магазине ждут бесплатные капсулы."),
@@ -676,12 +678,14 @@ async def setup_bot():
     try:
         await tg("setWebhook", url=f"{BASE_URL}/tg/webhook/{SECRET}", secret_token=SECRET,
                  allowed_updates=["message", "pre_checkout_query"], drop_pending_updates=False)
-        await tg("setChatMenuButton", menu_button={"type": "web_app", "text": "Play", "web_app": {"url": play_url()}})
-        await tg("setMyCommands", commands=[{"command": "start", "description": "Open your planet"}])
-        await tg("setMyShortDescription", short_description="Tiny worlds. Big meetups. A space game in Telegram.")
-        await tg("setMyDescription", description="Your tiny planet drifts through a shared space. Meet neighbours, trade, raid, upgrade your captain's gear and build alliances.")
-        await tg("setMyShortDescription", short_description="Маленькие миры. Большие встречи. Космическая игра в Telegram.", language_code="ru")
-        await tg("setMyDescription", description="Твоя маленькая планета летит по общему космосу. Встречай соседей, торгуй, устраивай набеги, улучшай снаряжение капитана и заключай союзы.", language_code="ru")
-        await tg("setMyCommands", commands=[{"command": "start", "description": "Открыть свою планету"}], language_code="ru")
+        await tg("setChatMenuButton", menu_button={"type": "web_app", "text": "Играть", "web_app": {"url": play_url()}})
+        await tg("setMyName", name="Bunker 17")
+        await tg("setMyName", name="Бункер 17", language_code="ru")
+        await tg("setMyCommands", commands=[{"command": "start", "description": "Go down into the bunker"}])
+        await tg("setMyShortDescription", short_description="40 levels underground. One staircase. One lie.")
+        await tg("setMyDescription", description="Bunker 17. Your partner was found dead at the bottom of the stairs. Run the lower levels, earn trust and uncover what the Data Department is hiding.")
+        await tg("setMyShortDescription", short_description="40 уровней под землёй. Одна лестница. Одна ложь.", language_code="ru")
+        await tg("setMyDescription", description="Бункер 17. Твоего напарника нашли мёртвым у подножия лестницы. Управляй нижними уровнями, завоёвывай доверие и раскрой, что скрывает Отдел данных.", language_code="ru")
+        await tg("setMyCommands", commands=[{"command": "start", "description": "Спуститься в бункер"}], language_code="ru")
     except Exception as e:
         log.exception("bot setup failed: %s", e)
