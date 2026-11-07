@@ -58,6 +58,8 @@ def db():
     c.execute("CREATE TABLE IF NOT EXISTS wboss (day TEXT PRIMARY KEY, hp INTEGER, max INTEGER)")
     c.execute("CREATE TABLE IF NOT EXISTS wdmg (day TEXT, uid INTEGER, name TEXT, dmg INTEGER DEFAULT 0, hits INTEGER DEFAULT 0, claimed INTEGER DEFAULT 0, PRIMARY KEY(day, uid))")
     c.execute("CREATE TABLE IF NOT EXISTS dau (day TEXT, uid INTEGER, PRIMARY KEY(day, uid))")
+    c.execute("CREATE TABLE IF NOT EXISTS rmsg (id INTEGER PRIMARY KEY AUTOINCREMENT, src INTEGER, dst INTEGER, kind TEXT, data TEXT, ts INTEGER, read INTEGER DEFAULT 0)")
+    c.execute("CREATE TABLE IF NOT EXISTS rweek (week TEXT, uid INTEGER, name TEXT, amt INTEGER DEFAULT 0, claimed INTEGER DEFAULT 0, PRIMARY KEY(week, uid))")
     c.execute("CREATE TABLE IF NOT EXISTS notified (uid INTEGER, kind TEXT, target INTEGER, sent INTEGER, PRIMARY KEY(uid,kind))")
     c.execute("CREATE TABLE IF NOT EXISTS guilds (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, emblem INTEGER, owner INTEGER, created INTEGER, week INTEGER DEFAULT 0, boss_hp INTEGER DEFAULT 0, boss_max INTEGER DEFAULT 0, killed INTEGER DEFAULT 0)")
     c.execute("CREATE TABLE IF NOT EXISTS gmembers (uid INTEGER PRIMARY KEY, gid INTEGER, name TEXT, joined INTEGER, week INTEGER DEFAULT 0, dmg INTEGER DEFAULT 0, hits_day TEXT DEFAULT '', hits INTEGER DEFAULT 0, claimed INTEGER DEFAULT 0)")
@@ -534,6 +536,68 @@ async def adm_check(request: Request):
     return {"admin": int(u["id"]) in ADMIN_IDS}
 
 
+# ---------------- radio between bunkers ----------------
+def bnum(uid):
+    return 2 + (int(uid) * 7919) % 97
+
+def wkey():
+    return time.strftime("%G-W%V", time.gmtime())
+
+@app.post("/api/radio/list")
+async def radio_list(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    with db() as c:
+        rows = c.execute("SELECT uid,name,power,updated FROM saves WHERE uid!=? ORDER BY updated DESC LIMIT 30", (uid,)).fetchall()
+        inbox = c.execute("SELECT id,src,kind,data,ts FROM rmsg WHERE dst=? ORDER BY id DESC LIMIT 30", (uid,)).fetchall()
+        names = {r[0]: r[1] for r in c.execute("SELECT uid,name FROM saves").fetchall()}
+        sent_today = c.execute("SELECT COUNT(*) FROM rmsg WHERE src=? AND kind='aid' AND ts>?", (uid, int(time.time()) - 86400)).fetchone()[0]
+        c.execute("UPDATE rmsg SET read=1 WHERE dst=?", (uid,))
+    return {"me": bnum(uid), "aid_left": max(0, 3 - sent_today),
+            "list": [{"uid": r[0], "num": bnum(r[0]), "name": r[1] or "—", "power": r[2], "seen": r[3]} for r in rows],
+            "inbox": [{"id": i, "from": bnum(sv), "name": names.get(sv, "—"), "kind": k, "data": json.loads(d or "{}"), "ts": ts} for i, sv, k, d, ts in inbox]}
+
+@app.post("/api/radio/send")
+async def radio_send(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    dst = int(body.get("to") or 0); kind = body.get("kind")
+    if not dst or dst == uid or kind not in ("aid", "msg"):
+        return {"ok": False}
+    with db() as c:
+        if not c.execute("SELECT 1 FROM saves WHERE uid=?", (dst,)).fetchone():
+            return {"ok": False}
+        if kind == "aid":
+            n = c.execute("SELECT COUNT(*) FROM rmsg WHERE src=? AND kind='aid' AND ts>?", (uid, int(time.time()) - 86400)).fetchone()[0]
+            if n >= 3:
+                return {"ok": False, "error": "limit"}
+            res = body.get("res"); amt = int(body.get("n") or 0)
+            if res not in ("energy", "water", "food", "parts") or amt <= 0 or amt > 2000:
+                return {"ok": False}
+            data = {"res": res, "n": amt}
+            c.execute("INSERT INTO grants(uid,sku,charge,claimed,ts,qty,data) VALUES(?,?,?,0,?,1,?)", (dst, "aid", f"aid-{uid}-{secrets.token_hex(4)}", int(time.time()), json.dumps({res: amt, "_from": bnum(uid)})))
+        else:
+            data = {"t": int(body.get("t") or 0)}
+        c.execute("INSERT INTO rmsg(src,dst,kind,data,ts) VALUES(?,?,?,?,?)", (uid, dst, kind, json.dumps(data), int(time.time())))
+    return {"ok": True}
+
+@app.post("/api/radio/week")
+async def radio_week(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"]); wk = wkey()
+    add = max(0, min(5000, int(body.get("add") or 0)))
+    with db() as c:
+        if add:
+            c.execute("INSERT INTO rweek(week,uid,name,amt) VALUES(?,?,?,?) ON CONFLICT(week,uid) DO UPDATE SET amt=amt+excluded.amt, name=excluded.name", (wk, uid, (u.get("first_name") or "")[:32], add))
+        total = c.execute("SELECT COALESCE(SUM(amt),0) FROM rweek WHERE week=?", (wk,)).fetchone()[0]
+        players = c.execute("SELECT COUNT(*) FROM saves WHERE updated>?", (int(time.time()) - 7 * 86400,)).fetchone()[0]
+        goal = max(2000, players * 400)
+        top = c.execute("SELECT uid,name,amt FROM rweek WHERE week=? ORDER BY amt DESC LIMIT 10", (wk,)).fetchall()
+        me = c.execute("SELECT amt,claimed FROM rweek WHERE week=? AND uid=?", (wk, uid)).fetchone()
+        claim = bool(body.get("claim")) and me and not me[1] and total >= goal and me[0] > 0
+        if claim:
+            c.execute("UPDATE rweek SET claimed=1 WHERE week=? AND uid=?", (wk, uid))
+    return {"week": wk, "total": total, "goal": goal, "mine": me[0] if me else 0, "claimed": bool(me and me[1]) or bool(claim), "claim_ok": bool(claim),
+            "top": [{"num": bnum(a), "name": n or "—", "amt": x, "me": a == uid} for a, n, x in top]}
+
+
 @app.get("/healthz")
 async def healthz():
     try:
@@ -625,6 +689,9 @@ async def webhook(secret: str, request: Request):
 
 NOTE = {
     "storage": ("Bunker 17: all rooms are full, production has stopped. Come and collect.", "Бункер 17: все комнаты заполнены, выработка встала. Спустись и собери ресурсы."),
+    "exp": ("Bunker 17: your expedition team is back. See what they found.", "Бункер 17: отряд вернулся с вылазки. Посмотри, что они нашли."),
+    "threat": ("Bunker 17: a disaster is coming soon. Check your reserves.", "Бункер 17: скоро беда. Проверь запасы бункера."),
+    "case": ("Bunker 17: a new case is waiting for the sheriff.", "Бункер 17: шерифа ждёт новое дело."),
     "patrol": ("Your captain is back from an 8-hour patrol with full loot.", "Капитан вернулся из патруля с полной добычей. Забери награды!"),
     "capup": ("Your star pod upgrade is done — better drop chances!", "Капсула улучшена — шансы на редкие вещи выросли!"),
     "free": ("Free star pods are waiting in the shop.", "В магазине ждут бесплатные капсулы."),
