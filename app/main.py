@@ -51,6 +51,9 @@ def db():
             c.execute(f"ALTER TABLE saves ADD COLUMN {col} {typ}")
     c.execute("CREATE TABLE IF NOT EXISTS grants (id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, sku TEXT, charge TEXT UNIQUE, claimed INTEGER DEFAULT 0, ts INTEGER)")
     c.execute("CREATE TABLE IF NOT EXISTS notified (uid INTEGER, kind TEXT, target INTEGER, sent INTEGER, PRIMARY KEY(uid,kind))")
+    c.execute("CREATE TABLE IF NOT EXISTS guilds (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, emblem INTEGER, owner INTEGER, created INTEGER, week INTEGER DEFAULT 0, boss_hp INTEGER DEFAULT 0, boss_max INTEGER DEFAULT 0, killed INTEGER DEFAULT 0)")
+    c.execute("CREATE TABLE IF NOT EXISTS gmembers (uid INTEGER PRIMARY KEY, gid INTEGER, name TEXT, joined INTEGER, week INTEGER DEFAULT 0, dmg INTEGER DEFAULT 0, hits_day TEXT DEFAULT '', hits INTEGER DEFAULT 0, claimed INTEGER DEFAULT 0)")
+    c.execute("CREATE TABLE IF NOT EXISTS gfeed (id INTEGER PRIMARY KEY AUTOINCREMENT, gid INTEGER, uid INTEGER, name TEXT, text TEXT, ts INTEGER)")
     c.execute("CREATE TABLE IF NOT EXISTS refs (friend INTEGER PRIMARY KEY, referrer INTEGER, name TEXT, claimed INTEGER DEFAULT 0, ts INTEGER)")
     return c
 
@@ -198,6 +201,173 @@ async def api_friends_claim(request: Request):
         n = c.execute("SELECT COUNT(*) FROM refs WHERE referrer=? AND claimed=0", (int(u["id"]),)).fetchone()[0]
         c.execute("UPDATE refs SET claimed=1 WHERE referrer=? AND claimed=0", (int(u["id"]),))
     return {"n": n}
+
+
+# ---------------- guilds ----------------
+GMAX = 20
+def week_no():
+    return int((time.time() - 345600) // 604800)  # weeks starting Monday 00:00 UTC
+
+def boss_max_for(c, gid):
+    n = c.execute("SELECT COUNT(*) FROM gmembers WHERE gid=?", (gid,)).fetchone()[0]
+    pw = c.execute("SELECT COALESCE(SUM(s.power),0) FROM gmembers m JOIN saves s ON s.uid=m.uid WHERE m.gid=?", (gid,)).fetchone()[0] or 0
+    return max(200000, int(pw * 120) + n * 50000)
+
+def guild_roll(c, gid):
+    w = week_no()
+    g = c.execute("SELECT week FROM guilds WHERE id=?", (gid,)).fetchone()
+    if g and g[0] != w:
+        mx = boss_max_for(c, gid)
+        c.execute("UPDATE guilds SET week=?, boss_hp=?, boss_max=?, killed=0 WHERE id=?", (w, mx, mx, gid))
+        c.execute("UPDATE gmembers SET week=?, dmg=0, claimed=0 WHERE gid=?", (w, gid))
+
+def guild_view(c, uid):
+    me = c.execute("SELECT gid FROM gmembers WHERE uid=?", (uid,)).fetchone()
+    if not me:
+        return {"guild": None}
+    gid = me[0]
+    guild_roll(c, gid)
+    g = c.execute("SELECT id,name,emblem,owner,boss_hp,boss_max,killed FROM guilds WHERE id=?", (gid,)).fetchone()
+    if not g:
+        c.execute("DELETE FROM gmembers WHERE uid=?", (uid,))
+        return {"guild": None}
+    mem = c.execute("SELECT m.uid,m.name,m.dmg,COALESCE(s.power,0),m.hits_day,m.hits,m.claimed FROM gmembers m LEFT JOIN saves s ON s.uid=m.uid WHERE m.gid=? ORDER BY m.dmg DESC, s.power DESC", (gid,)).fetchall()
+    feed = c.execute("SELECT name,text,ts,uid FROM gfeed WHERE gid=? ORDER BY id DESC LIMIT 40", (gid,)).fetchall()
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    mine = next((x for x in mem if x[0] == uid), None)
+    left = 3 - (mine[5] if mine and mine[4] == today else 0)
+    return {"guild": {"id": g[0], "name": g[1], "emblem": g[2], "owner": g[3] == uid, "boss_hp": g[4], "boss_max": g[5], "killed": bool(g[6]),
+            "members": [{"name": n or "Player", "dmg": d, "power": p, "me": u == uid, "owner": u == g[3]} for u, n, d, p, _, _, _ in mem],
+            "feed": [{"name": n, "text": t, "ts": ts, "me": u == uid} for n, t, ts, u in feed], "hits_left": max(0, left),
+            "claim": bool(g[6]) and mine is not None and not mine[6], "week_ends": (week_no() + 1) * 604800 + 345600}}
+
+@app.post("/api/guild/me")
+async def g_me(request: Request):
+    body = await request.json(); u = auth(body)
+    with db() as c:
+        return guild_view(c, int(u["id"]))
+
+@app.post("/api/guild/list")
+async def g_list(request: Request):
+    body = await request.json(); auth(body)
+    q = (body.get("q") or "").strip()[:24]
+    with db() as c:
+        rows = c.execute("SELECT g.id,g.name,g.emblem,COUNT(m.uid),COALESCE(SUM(s.power),0) FROM guilds g LEFT JOIN gmembers m ON m.gid=g.id LEFT JOIN saves s ON s.uid=m.uid WHERE g.name LIKE ? GROUP BY g.id ORDER BY SUM(s.power) DESC LIMIT 30", (f"%{q}%",)).fetchall()
+    return {"list": [{"id": i, "name": n, "emblem": e, "count": k, "power": p} for i, n, e, k, p in rows]}
+
+@app.post("/api/guild/create")
+async def g_create(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    name = " ".join((body.get("name") or "").split())[:20]
+    emb = int(body.get("emblem") or 0) % 6
+    if len(name) < 3:
+        return {"error": "name"}
+    with db() as c:
+        if c.execute("SELECT 1 FROM gmembers WHERE uid=?", (uid,)).fetchone():
+            return {"error": "member"}
+        if c.execute("SELECT 1 FROM guilds WHERE LOWER(name)=LOWER(?)", (name,)).fetchone():
+            return {"error": "taken"}
+        c.execute("INSERT INTO guilds(name,emblem,owner,created,week) VALUES(?,?,?,?,-1)", (name, emb, uid, int(time.time())))
+        gid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        c.execute("INSERT INTO gmembers(uid,gid,name,joined,week) VALUES(?,?,?,?,?)", (uid, gid, (u.get("first_name") or "")[:32], int(time.time()), week_no()))
+        c.execute("INSERT INTO gfeed(gid,uid,name,text,ts) VALUES(?,?,?,?,?)", (gid, 0, "", "created", int(time.time())))
+        return guild_view(c, uid)
+
+@app.post("/api/guild/join")
+async def g_join(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"]); gid = int(body.get("gid") or 0)
+    with db() as c:
+        if c.execute("SELECT 1 FROM gmembers WHERE uid=?", (uid,)).fetchone():
+            return {"error": "member"}
+        if not c.execute("SELECT 1 FROM guilds WHERE id=?", (gid,)).fetchone():
+            return {"error": "nf"}
+        if c.execute("SELECT COUNT(*) FROM gmembers WHERE gid=?", (gid,)).fetchone()[0] >= GMAX:
+            return {"error": "full"}
+        c.execute("INSERT INTO gmembers(uid,gid,name,joined,week) VALUES(?,?,?,?,?)", (uid, gid, (u.get("first_name") or "")[:32], int(time.time()), week_no()))
+        c.execute("INSERT INTO gfeed(gid,uid,name,text,ts) VALUES(?,?,?,?,?)", (gid, 0, (u.get("first_name") or "")[:32], "joined", int(time.time())))
+        return guild_view(c, uid)
+
+@app.post("/api/guild/leave")
+async def g_leave(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    with db() as c:
+        me = c.execute("SELECT gid FROM gmembers WHERE uid=?", (uid,)).fetchone()
+        if me:
+            gid = me[0]
+            c.execute("DELETE FROM gmembers WHERE uid=?", (uid,))
+            c.execute("INSERT INTO gfeed(gid,uid,name,text,ts) VALUES(?,?,?,?,?)", (gid, 0, (u.get("first_name") or "")[:32], "left", int(time.time())))
+            rest = c.execute("SELECT uid FROM gmembers WHERE gid=? ORDER BY joined LIMIT 1", (gid,)).fetchone()
+            if not rest:
+                c.execute("DELETE FROM guilds WHERE id=?", (gid,)); c.execute("DELETE FROM gfeed WHERE gid=?", (gid,))
+            else:
+                c.execute("UPDATE guilds SET owner=? WHERE id=? AND owner=?", (rest[0], gid, uid))
+    return {"guild": None}
+
+@app.post("/api/guild/post")
+async def g_post(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    text = " ".join((body.get("text") or "").split())[:200]
+    with db() as c:
+        me = c.execute("SELECT gid FROM gmembers WHERE uid=?", (uid,)).fetchone()
+        if not me or not text:
+            return guild_view(c, uid)
+        last = c.execute("SELECT ts FROM gfeed WHERE uid=? ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+        if not last or time.time() - last[0] >= 3:
+            c.execute("INSERT INTO gfeed(gid,uid,name,text,ts) VALUES(?,?,?,?,?)", (me[0], uid, (u.get("first_name") or "")[:32], text, int(time.time())))
+        return guild_view(c, uid)
+
+@app.post("/api/guild/hit")
+async def g_hit(request: Request):
+    import random
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    with db() as c:
+        me = c.execute("SELECT gid,hits_day,hits FROM gmembers WHERE uid=?", (uid,)).fetchone()
+        if not me:
+            return {"error": "nf"}
+        gid, hd, h = me
+        guild_roll(c, gid)
+        h = h if hd == today else 0
+        if h >= 3:
+            return {"error": "limit", **guild_view(c, uid)}
+        g = c.execute("SELECT boss_hp FROM guilds WHERE id=?", (gid,)).fetchone()
+        pw = c.execute("SELECT COALESCE(power,0) FROM saves WHERE uid=?", (uid,)).fetchone()
+        dmg = int(max(100, (pw[0] if pw else 0)) * random.uniform(8, 12))
+        hp = max(0, g[0] - dmg)
+        c.execute("UPDATE guilds SET boss_hp=?, killed=CASE WHEN ?=0 THEN 1 ELSE killed END WHERE id=?", (hp, hp, gid))
+        c.execute("UPDATE gmembers SET dmg=dmg+?, hits_day=?, hits=? WHERE uid=?", (dmg, today, h + 1, uid))
+        if hp == 0 and g[0] > 0:
+            c.execute("INSERT INTO gfeed(gid,uid,name,text,ts) VALUES(?,?,?,?,?)", (gid, 0, (u.get("first_name") or "")[:32], "boss", int(time.time())))
+        v = guild_view(c, uid); v["dmg"] = dmg
+        return v
+
+@app.post("/api/guild/claim")
+async def g_claim(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"])
+    with db() as c:
+        me = c.execute("SELECT m.gid,m.claimed,g.killed FROM gmembers m JOIN guilds g ON g.id=m.gid WHERE m.uid=?", (uid,)).fetchone()
+        if not me or me[1] or not me[2]:
+            return {"ok": False}
+        c.execute("UPDATE gmembers SET claimed=1 WHERE uid=?", (uid,))
+        return {"ok": True}
+
+# ---------------- weekly event ----------------
+@app.post("/api/event/top")
+async def ev_top(request: Request):
+    body = await request.json(); u = auth(body); uid = int(u["id"]); eid = int(body.get("id") or 0)
+    with db() as c:
+        rows = c.execute("SELECT uid,name,meta FROM saves").fetchall()
+    out = []
+    for i, n, m in rows:
+        try:
+            ev = (json.loads(m or "{}") or {}).get("ev") or {}
+        except Exception:
+            ev = {}
+        if ev.get("id") == eid and ev.get("tok"):
+            out.append({"name": n or "Player", "tok": int(ev["tok"]), "me": i == uid})
+    out.sort(key=lambda x: -x["tok"])
+    rank = next((k + 1 for k, x in enumerate(out) if x["me"]), 0)
+    return {"list": out[:30], "rank": rank}
 
 
 @app.get("/healthz")
