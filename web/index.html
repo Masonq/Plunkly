@@ -498,6 +498,12 @@ button{font-family:inherit;color:inherit}
 .rc{cursor:pointer}
 .rc.full{border-color:rgba(227,161,59,.7);background:rgba(227,161,59,.12)}
 .rc.full span{color:var(--am2)}
+/* bigger residents */
+.room .walk{height:64px;width:30px;bottom:5px;object-fit:contain;object-position:bottom;opacity:.95;filter:drop-shadow(0 3px 3px rgba(0,0,0,.8)) brightness(.9)}
+@keyframes walk{0%{left:8%;transform:scaleX(1)}49%{transform:scaleX(1)}50%{left:58%;transform:scaleX(-1)}100%{left:58%;transform:scaleX(-1)}}
+.porter{width:26px;height:42px;margin-left:-13px}
+@media (max-width:360px){.room .walk{height:54px;width:26px}}
+@keyframes walk{0%{left:6%;transform:scaleX(1)}49%{transform:scaleX(1)}50%{left:48%;transform:scaleX(-1)}100%{left:48%;transform:scaleX(-1)}}
 </style>
 </head>
 <body>
